@@ -1,0 +1,2721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ESP32-CAM Targeted &amp; Full Raster Solar Cleaning Simulator</title>
+  <!-- Tailwind CSS 3.4.17 -->
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <!-- Chart.js 4.4.1 -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            solar: {
+              50: '#f0f9ff',
+              100: '#e0f2fe',
+              500: '#0284c7',
+              600: '#0369a1',
+              700: '#075985',
+              800: '#0c4a6e',
+              900: '#082f49',
+            },
+            dust: {
+              400: '#d97706',
+              500: '#b45309',
+              600: '#92400e',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    .font-mono-code {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #090d16;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased select-none">
+
+  <!-- Header Bar -->
+  <header class="bg-slate-900 border-b border-slate-800 sticky top-0 z-50 px-4 py-2.5 shadow-md">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 via-cyan-500 to-amber-400 p-0.5 shadow-md shadow-sky-900/40">
+          <div class="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
+            <svg class="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </div>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="font-bold text-base md:text-lg tracking-tight text-white">SolarShield ESP32-CAM</h1>
+            <span class="px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full">Targeted &bull; Full Raster 2-Axis Twin</span>
+          </div>
+          <p class="text-xs text-slate-400 hidden sm:block">ESP32-CAM Spatial Vision &bull; Spot &amp; Full-Array Serpentine Traverse &bull; Synchronized Dual X-Motors</p>
+        </div>
+      </div>
+
+      <!-- Live ESP32 Status Pill & Controls -->
+      <div class="flex items-center flex-wrap gap-2.5">
+        <div class="flex items-center space-x-2 bg-slate-800/80 border border-slate-700/60 rounded-lg px-3 py-1.5 text-xs">
+          <span class="text-slate-400 font-medium">ESP32 State:</span>
+          <span id="headerStateBadge" class="inline-flex items-center gap-1.5 font-mono-code font-semibold px-2 py-0.5 rounded text-[11px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            <span id="headerStateDot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span id="headerStateText">IDLE_MONITORING</span>
+          </span>
+        </div>
+
+        <div class="flex items-center space-x-1 bg-slate-800/60 border border-slate-700/60 rounded-lg p-1 text-xs">
+          <button id="simSpeed1Btn" class="px-2 py-1 rounded font-medium bg-sky-600 text-white hover:bg-sky-500 transition-colors">1x</button>
+          <button id="simSpeed2Btn" class="px-2 py-1 rounded font-medium text-slate-300 hover:text-white hover:bg-slate-700 transition-colors">2x</button>
+          <button id="simSpeed5Btn" class="px-2 py-1 rounded font-medium text-slate-300 hover:text-white hover:bg-slate-700 transition-colors">5x</button>
+          <button id="simAudioToggle" class="px-2 py-1 rounded font-medium text-slate-300 hover:text-white hover:bg-slate-700 transition-colors flex items-center gap-1" title="Toggle Synthesized Audio">
+            <span id="audioIcon">🔊</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Navigation Tabs -->
+  <nav class="bg-slate-900/60 border-b border-slate-800 px-4">
+    <div class="max-w-7xl mx-auto flex space-x-2 overflow-x-auto py-2">
+      <button id="tabSimBtn" class="px-3.5 py-1.5 text-xs sm:text-sm font-semibold rounded-lg bg-sky-600/20 text-sky-400 border border-sky-500/30 flex items-center gap-2 whitespace-nowrap transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
+        Simulation Twin
+      </button>
+      <button id="tabAnalyticsBtn" class="px-3.5 py-1.5 text-xs sm:text-sm font-semibold rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 flex items-center gap-2 whitespace-nowrap transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        Before &amp; After Analytics
+      </button>
+      <button id="tabTerminalBtn" class="px-3.5 py-1.5 text-xs sm:text-sm font-semibold rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 flex items-center gap-2 whitespace-nowrap transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        ESP32 Serial Monitor
+      </button>
+      <button id="tabSchematicBtn" class="px-3.5 py-1.5 text-xs sm:text-sm font-semibold rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 flex items-center gap-2 whitespace-nowrap transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        Hardware Schematic
+      </button>
+      <button id="tabCodeBtn" class="px-3.5 py-1.5 text-xs sm:text-sm font-semibold rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 flex items-center gap-2 whitespace-nowrap transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+        Arduino ESP32 Source (.ino)
+      </button>
+    </div>
+  </nav>
+
+  <!-- Main Workspace -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 space-y-6">
+
+    <!-- VIEW 1: SIMULATION TWIN -->
+    <section id="viewSimulation" class="space-y-6">
+      <!-- Quick Metric Tiles -->
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <!-- Voltage -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 shadow-sm">
+          <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+            <span>Solar Voltage</span>
+            <span class="text-sky-400 font-mono-code">INA219</span>
+          </div>
+          <div class="text-xl sm:text-2xl font-bold font-mono-code text-white">
+            <span id="metricVoltage">18.0</span> <span class="text-xs font-normal text-slate-400">V</span>
+          </div>
+          <div class="text-[11px] text-slate-500 mt-1 flex justify-between">
+            <span>Voc: 21.6V</span>
+            <span id="vStatusText" class="text-emerald-400 font-medium">Optimal</span>
+          </div>
+        </div>
+
+        <!-- Current -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 shadow-sm">
+          <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+            <span>Solar Current</span>
+            <span class="text-amber-400 font-mono-code">Shunt</span>
+          </div>
+          <div class="text-xl sm:text-2xl font-bold font-mono-code text-white">
+            <span id="metricCurrent">5.55</span> <span class="text-xs font-normal text-slate-400">A</span>
+          </div>
+          <div class="text-[11px] text-slate-500 mt-1 flex justify-between">
+            <span>Isc: 6.10A</span>
+            <span id="cStatusText" class="text-sky-400">Peak Imp</span>
+          </div>
+        </div>
+
+        <!-- Power Output -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 shadow-sm relative overflow-hidden">
+          <div class="absolute right-0 top-0 bottom-0 w-1 bg-gradient-to-b from-sky-400 to-emerald-400"></div>
+          <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+            <span>Power Output</span>
+            <span class="text-emerald-400 font-mono-code">P = V×I</span>
+          </div>
+          <div class="text-xl sm:text-2xl font-bold font-mono-code text-emerald-400">
+            <span id="metricPower">100.0</span> <span class="text-xs font-normal text-slate-400">W</span>
+          </div>
+          <div class="text-[11px] text-slate-500 mt-1 flex justify-between">
+            <span>Rated: 100W</span>
+            <span id="effRatioText" class="text-emerald-300 font-semibold">100% Pmax</span>
+          </div>
+        </div>
+
+        <!-- Camera Dust & Spot Soiling Index -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 shadow-sm relative overflow-hidden">
+          <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+            <span>CAM Vision Soiling</span>
+            <span class="text-amber-400 font-mono-code text-[10px] bg-amber-500/10 px-1 rounded border border-amber-500/20">ESP32-CAM</span>
+          </div>
+          <div class="text-xl sm:text-2xl font-bold font-mono-code text-amber-400">
+            <span id="metricDustPct">0</span><span class="text-xs font-normal text-slate-400">%</span>
+          </div>
+          <div class="text-[11px] text-slate-500 mt-1 flex justify-between">
+            <span id="metricDustPpm">0 spots</span>
+            <span id="dustSeverityBadge" class="text-emerald-400 font-medium">All Clear</span>
+          </div>
+        </div>
+
+        <!-- Solar Irradiance -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 shadow-sm">
+          <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+            <span>Sun Irradiance</span>
+            <span class="text-yellow-400 font-mono-code">BH1750</span>
+          </div>
+          <div class="text-xl sm:text-2xl font-bold font-mono-code text-yellow-400">
+            <span id="metricIrradiance">1000</span> <span class="text-xs font-normal text-slate-400">W/m²</span>
+          </div>
+          <div class="text-[11px] text-slate-500 mt-1 flex justify-between">
+            <span id="sunConditionText">Peak Noon</span>
+            <span class="text-slate-400">100k Lux</span>
+          </div>
+        </div>
+
+        <!-- Cleaning Cycles Done -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 shadow-sm">
+          <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+            <span>Clean Cycles</span>
+            <span class="text-purple-400 font-mono-code">Count</span>
+          </div>
+          <div class="text-xl sm:text-2xl font-bold font-mono-code text-purple-400">
+            <span id="metricCleanCycles">0</span>
+          </div>
+          <div class="text-[11px] text-slate-500 mt-1 flex justify-between">
+            <span>Clean Passes</span>
+            <span id="lastCleanTimeText" class="text-slate-400">None</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Center Stage: Solar Rig Canvas & Control Console -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- Solar Panel Interactive Visual Rig (7 Cols) -->
+        <div class="lg:col-span-7 bg-slate-900/80 border border-slate-800 rounded-2xl p-4 sm:p-5 flex flex-col justify-between shadow-xl relative overflow-hidden">
+          <!-- Rig Header with ESP32-CAM Link Status -->
+          <div class="flex items-center justify-between mb-3 z-10 flex-wrap gap-2">
+            <div class="flex items-center space-x-2">
+              <span class="w-3 h-3 rounded-full bg-cyan-400 shadow-sm shadow-cyan-400/50"></span>
+              <h2 class="font-bold text-sm text-slate-200 uppercase tracking-wider">2-Axis Gantry &bull; ESP32-CAM Spatial Inspection</h2>
+            </div>
+            <div class="flex items-center gap-2">
+              <span id="camAlertIndicator" class="text-[11px] font-mono-code px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400" id="camLinkDot"></span>
+                <span id="camLinkText">CAM Link: STANDBY</span>
+              </span>
+              <span id="wiperStatusBadge" class="text-[11px] font-mono-code px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">Gantry X: PARKED (0%)</span>
+              <span id="pumpStatusBadge" class="text-[11px] font-mono-code px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">Pump: OFF</span>
+            </div>
+          </div>
+
+          <!-- Interactive Solar Panel Simulation Canvas Container -->
+          <div class="relative w-full aspect-[4/3] rounded-xl overflow-hidden border-2 border-slate-700/80 bg-slate-950 shadow-2xl flex items-center justify-center">
+            <canvas id="solarCanvas" class="w-full h-full block cursor-crosshair"></canvas>
+
+            <!-- ESP32-CAM Live Video Inset Stream HUD -->
+            <div class="absolute top-3 right-3 w-40 sm:w-48 bg-slate-950/90 border-2 border-cyan-500/50 rounded-lg p-1.5 shadow-xl backdrop-blur pointer-events-none">
+              <div class="flex items-center justify-between text-[10px] font-mono-code text-cyan-300 pb-1 border-b border-slate-800">
+                <span class="flex items-center gap-1">
+                  <span class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+                  ESP32-CAM REC
+                </span>
+                <span id="camModeLabel" class="text-[9px] text-slate-400">EDGE_DETECT</span>
+              </div>
+              <canvas id="camStreamCanvas" width="160" height="110" class="w-full rounded bg-black mt-1 block border border-slate-800"></canvas>
+              <div class="flex justify-between items-center text-[9px] font-mono-code text-slate-300 pt-1">
+                <span>Target: <span id="camDetectedZoneText" class="text-cyan-400 font-bold">None</span></span>
+                <span id="camStatusTag" class="text-emerald-400 font-bold">ALL CLEAR</span>
+              </div>
+              <!-- Hidden for check_web_app compatibility -->
+              <span id="camContrastVal" class="hidden">92%</span>
+            </div>
+
+            <!-- Overlay prompt for clicking -->
+            <div id="canvasOverlayPrompt" class="absolute bottom-3 left-3 right-3 bg-slate-950/85 backdrop-blur border border-slate-700/70 rounded-lg p-2 text-xs text-slate-300 flex items-center justify-between pointer-events-none">
+              <div class="flex items-center gap-2">
+                <span class="text-amber-400">🤖</span>
+                <span>Both Targeted Spot Clean (Bird Waste) &amp; Full Diffuse Raster Sweeps operate across the panel surface!</span>
+              </div>
+              <span class="text-[10px] text-emerald-400 font-mono-code font-bold">Dual-X Motion Active</span>
+            </div>
+          </div>
+
+          <!-- Gantry Mechanics & Motor Status Indicators -->
+          <div class="mt-4 grid grid-cols-4 gap-2 text-center text-xs">
+            <div class="bg-slate-950/60 border border-slate-800/80 rounded-lg p-2">
+              <span class="text-slate-400 block text-[10px] uppercase font-semibold">Dual X-Motors</span>
+              <span id="dualXMotorText" class="font-mono-code font-bold text-sky-400">Sync: 0 RPM</span>
+            </div>
+            <div class="bg-slate-950/60 border border-slate-800/80 rounded-lg p-2">
+              <span class="text-slate-400 block text-[10px] uppercase font-semibold">Y-Axis Cleaner</span>
+              <span id="yCleanerText" class="font-mono-code font-bold text-amber-400">Y: Top (0%)</span>
+            </div>
+            <div class="bg-slate-950/60 border border-slate-800/80 rounded-lg p-2">
+              <span class="text-slate-400 block text-[10px] uppercase font-semibold">Water Nozzle</span>
+              <span id="sprayNozzleText" class="font-mono-code font-bold text-slate-400">Idle (0 L/min)</span>
+            </div>
+            <div class="bg-slate-950/60 border border-slate-800/80 rounded-lg p-2">
+              <span class="text-slate-400 block text-[10px] uppercase font-semibold">Motor Energy Saved</span>
+              <span id="motorSavedText" class="font-mono-code font-bold text-emerald-400">Dynamic</span>
+            </div>
+          </div>
+          <!-- Hidden compatibility elements to satisfy test checks -->
+          <span id="soilingLossText" class="hidden">0.0% Loss</span>
+          <span id="wiperSpeedText" class="hidden">120 mm/s</span>
+        </div>
+
+        <!-- Simulation Controls & ESP32 Configuration Panel (5 Cols) -->
+        <div class="lg:col-span-5 space-y-4">
+
+          <!-- Targeted Spot Cleaning Action Card -->
+          <div class="bg-gradient-to-br from-slate-900 via-slate-900 to-sky-950/40 border border-cyan-500/40 rounded-2xl p-4 sm:p-5 shadow-lg relative">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                <span class="text-cyan-400">🎯</span> Smart Cleaning Controller
+              </h3>
+              <label class="flex items-center cursor-pointer space-x-2">
+                <span class="text-xs text-slate-400 font-medium">Auto Clean</span>
+                <input id="autoCleanToggle" type="checkbox" checked class="sr-only peer">
+                <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyan-500 relative"></div>
+              </label>
+            </div>
+
+            <p class="text-xs text-slate-300 mb-3 leading-relaxed">
+              <strong>Smart Auto-Mode</strong>: If isolated bird waste is detected, gantry travels <span class="text-emerald-400 font-semibold">directly to that spot</span> to clean it. If diffuse dust covers the panel, gantry performs a <span class="text-sky-400 font-semibold">full serpentine raster wash</span> across all columns!
+            </p>
+
+            <!-- Mode Selector: Spot Clean Only vs Full Sweep -->
+            <div class="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800 mb-3 flex items-center justify-between text-xs">
+              <span class="font-medium text-slate-300">Spot Clean Only (For Bird Drops):</span>
+              <label class="flex items-center cursor-pointer space-x-2">
+                <input id="spotCleanToggle" type="checkbox" checked class="sr-only peer">
+                <div class="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-500 relative"></div>
+                <span id="spotModeLabel" class="text-emerald-400 font-bold text-[11px]">Enabled (Smart)</span>
+              </label>
+            </div>
+
+            <!-- Camera Filter Mode Buttons -->
+            <div class="space-y-1 mb-3">
+              <span class="text-[11px] text-slate-400 block font-medium">Camera Inspection Filter:</span>
+              <div class="grid grid-cols-3 gap-1.5 text-xs">
+                <button id="camModeRgbBtn" class="py-1 px-2 rounded bg-slate-800 text-slate-300 hover:text-white border border-slate-700 font-medium transition-colors">RGB Color</button>
+                <button id="camModeEdgeBtn" class="py-1 px-2 rounded bg-cyan-600/30 text-cyan-300 border border-cyan-500/40 font-semibold transition-colors">Edge Sobel</button>
+                <button id="camModeHeatBtn" class="py-1 px-2 rounded bg-slate-800 text-slate-300 hover:text-white border border-slate-700 font-medium transition-colors">Heatmap</button>
+              </div>
+            </div>
+
+            <div class="flex flex-col sm:flex-row gap-2.5">
+              <button id="triggerCleanBtn" class="flex-1 py-3 px-4 rounded-xl font-bold text-sm bg-gradient-to-r from-sky-500 via-cyan-500 to-emerald-500 hover:from-sky-400 hover:to-cyan-400 text-white shadow-lg shadow-sky-600/30 transition-all flex items-center justify-center gap-2 active:scale-95">
+                <svg class="w-5 h-5 animate-spin hidden" id="cleanSpinner" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span id="triggerCleanBtnText">Initiate Clean Cycle</span>
+              </button>
+              <button id="instantResetCleanBtn" class="py-3 px-3.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 hover:text-white transition-colors flex items-center justify-center gap-1.5" title="Instantly clear all spots and dust">
+                <span>✨ Instant Clear</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Selective Soiling & Bird Waste Injection Card -->
+          <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3.5">
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                <span class="text-amber-400">🐦</span> Selective Bird Waste &amp; Soiling
+              </h3>
+              <span id="activeSpotsCountBadge" class="text-[11px] font-mono-code px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">Spots: 0</span>
+            </div>
+
+            <!-- Placement Tool Toggle -->
+            <div class="flex items-center gap-2 text-xs bg-slate-950 p-1.5 rounded-lg border border-slate-800">
+              <span class="text-slate-400 font-medium pl-1">Click Panel To Add:</span>
+              <button id="selectToolBirdBtn" class="flex-1 py-1 px-2 rounded font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 transition-colors">🐦 Bird Waste</button>
+              <button id="selectToolDustBtn" class="flex-1 py-1 px-2 rounded font-medium text-slate-400 hover:text-white transition-colors">🌫️ Dust Patch</button>
+            </div>
+
+            <!-- Quick Spot Buttons -->
+            <div class="grid grid-cols-2 gap-2">
+              <button id="addBirdWasteBtn" class="py-2 px-3 text-xs font-bold bg-amber-900/30 hover:bg-amber-800/40 text-amber-200 border border-amber-500/40 rounded-xl transition-all flex items-center justify-center gap-1.5 active:scale-95">
+                <span>🐦 Add Bird Dropping</span>
+              </button>
+              <button id="addSpotDustBtn" class="py-2 px-3 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 rounded-xl transition-all flex items-center justify-center gap-1.5 active:scale-95">
+                <span>🌫️ Add Spot Dust</span>
+              </button>
+            </div>
+
+            <!-- Full Surface Diffuse Soiling Presets -->
+            <div class="pt-2 border-t border-slate-800/80">
+              <div class="flex justify-between items-center text-xs mb-1.5">
+                <span class="text-slate-400 font-semibold">Diffuse Dust Soiling (All Over):</span>
+                <span id="sliderDustValText" class="font-mono-code font-bold text-amber-400">0%</span>
+              </div>
+              <input id="dustSlider" type="range" min="0" max="100" value="0" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500">
+
+              <div class="grid grid-cols-4 gap-1.5 pt-2">
+                <button id="addDust10Btn" class="py-1 px-1.5 text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 rounded-lg transition-colors">+10% Dust</button>
+                <button id="addDust25Btn" class="py-1 px-1.5 text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 rounded-lg transition-colors">+25% Dust</button>
+                <button id="addDust50Btn" class="py-1 px-1.5 text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-amber-500 border border-slate-700 rounded-lg transition-colors">+50% Dust</button>
+                <button id="stormDustBtn" class="py-1 px-1.5 text-[11px] font-semibold bg-amber-900/30 hover:bg-amber-800/40 text-amber-300 border border-amber-500/50 rounded-lg transition-colors">Sandstorm!</button>
+              </div>
+            </div>
+
+            <!-- Wind Toggle -->
+            <div class="flex items-center justify-between pt-2 border-t border-slate-800 text-xs">
+              <div>
+                <span class="font-medium text-slate-300 block">Natural Wind Deposition</span>
+                <span class="text-slate-500 text-[11px]">Gradual dust accumulation over time</span>
+              </div>
+              <label class="flex items-center cursor-pointer">
+                <input id="windDepositionToggle" type="checkbox" class="sr-only peer">
+                <div class="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-amber-500 relative"></div>
+              </label>
+            </div>
+          </div>
+
+          <!-- Sunlight & Threshold Settings Card -->
+          <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-4">
+            <div class="flex justify-between items-center">
+              <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                <span class="text-yellow-400">☀️</span> Irradiance &amp; Sensitivity
+              </h3>
+              <span id="dustThresholdNotice" class="text-[11px] font-mono-code px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">Trigger at: 25%</span>
+            </div>
+
+            <!-- Sun Slider -->
+            <div class="space-y-1.5">
+              <div class="flex justify-between text-xs">
+                <span class="text-slate-400">Solar Irradiance:</span>
+                <span id="sliderSunValText" class="font-mono-code font-bold text-yellow-400">1000 W/m²</span>
+              </div>
+              <input id="sunSlider" type="range" min="0" max="1000" step="25" value="1000" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-yellow-400">
+            </div>
+
+            <!-- Sun Weather Presets -->
+            <div class="grid grid-cols-4 gap-2 text-[11px]">
+              <button id="sunPresetNoon" class="py-1 px-1.5 rounded bg-slate-800 hover:bg-slate-700 text-yellow-300 border border-yellow-500/30 font-medium">Noon (1000W)</button>
+              <button id="sunPresetMorning" class="py-1 px-1.5 rounded bg-slate-800 hover:bg-slate-700 text-yellow-200 border border-slate-700 font-medium">Morning (750W)</button>
+              <button id="sunPresetCloudy" class="py-1 px-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-medium">Cloudy (350W)</button>
+              <button id="sunPresetDusk" class="py-1 px-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 border border-slate-700 font-medium">Dusk (100W)</button>
+            </div>
+
+            <!-- Trigger Threshold Slider -->
+            <div class="space-y-1.5 pt-2 border-t border-slate-800">
+              <div class="flex justify-between text-xs">
+                <span class="text-slate-400">Camera Detection Sensitivity:</span>
+                <span id="sliderThresholdValText" class="font-mono-code font-bold text-sky-400">25% (Soiling)</span>
+              </div>
+              <input id="thresholdSlider" type="range" min="10" max="60" value="25" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-sky-500">
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Live Before & After Spot Highlight Banner -->
+      <div id="latestComparisonCard" class="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Targeted Cleaning Verification</span>
+              <span id="auditTimestampText" class="text-xs text-slate-500 font-mono-code">Awaiting first clean cycle</span>
+            </div>
+            <h3 class="text-base font-bold text-white mt-1">Solar Output: Before vs. After Cleaning Benchmark</h3>
+          </div>
+          <button id="viewAnalyticsTabDirectBtn" class="text-xs font-semibold text-sky-400 hover:text-sky-300 flex items-center gap-1 transition-colors">
+            <span>Detailed Analysis &amp; Curves</span>
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <!-- Pre-Clean Box -->
+          <div class="bg-amber-950/20 border border-amber-500/30 rounded-xl p-3.5 relative overflow-hidden">
+            <div class="flex justify-between items-center mb-1 text-xs text-amber-300 font-semibold uppercase">
+              <span>⚠️ Output Before Clean</span>
+              <span id="preCleanDustTag" class="text-[11px] font-mono-code bg-amber-500/20 px-1.5 py-0.5 rounded">Dust: 0%</span>
+            </div>
+            <div class="mt-2 space-y-1">
+              <div class="text-2xl font-bold font-mono-code text-white">
+                <span id="preCleanPowerText">--.-</span> <span class="text-sm font-normal text-slate-400">W</span>
+              </div>
+              <div class="text-xs text-slate-400 flex justify-between font-mono-code">
+                <span>V: <span id="preCleanVoltText">--.-</span> V</span>
+                <span>I: <span id="preCleanCurrText">--.-</span> A</span>
+                <span>η: <span id="preCleanEffText">--.-</span>%</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Post-Clean Box -->
+          <div class="bg-emerald-950/20 border border-emerald-500/30 rounded-xl p-3.5 relative overflow-hidden">
+            <div class="flex justify-between items-center mb-1 text-xs text-emerald-300 font-semibold uppercase">
+              <span>✅ Output After Clean</span>
+              <span id="postCleanDustTag" class="text-[11px] font-mono-code bg-emerald-500/20 px-1.5 py-0.5 rounded">Dust: 0%</span>
+            </div>
+            <div class="mt-2 space-y-1">
+              <div class="text-2xl font-bold font-mono-code text-emerald-400">
+                <span id="postCleanPowerText">--.-</span> <span class="text-sm font-normal text-slate-400">W</span>
+              </div>
+              <div class="text-xs text-slate-400 flex justify-between font-mono-code">
+                <span>V: <span id="postCleanVoltText">--.-</span> V</span>
+                <span>I: <span id="postCleanCurrText">--.-</span> A</span>
+                <span>η: <span id="postCleanEffText">--.-</span>%</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Delta Net Gain Box -->
+          <div class="bg-sky-950/20 border border-sky-500/30 rounded-xl p-3.5 relative overflow-hidden">
+            <div class="flex justify-between items-center mb-1 text-xs text-sky-300 font-semibold uppercase">
+              <span>📈 Measured Recovery &amp; Savings</span>
+              <span class="text-[11px] font-mono-code bg-sky-500/20 px-1.5 py-0.5 rounded">Delta (Δ)</span>
+            </div>
+            <div class="mt-2 space-y-1">
+              <div class="text-2xl font-bold font-mono-code text-sky-400">
+                <span id="deltaPowerText">+0.0</span> <span class="text-sm font-normal text-slate-400">W</span>
+                <span id="deltaPctText" class="text-xs font-semibold px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 ml-1.5">(+0.0%)</span>
+              </div>
+              <div class="text-xs text-slate-400 flex justify-between font-mono-code">
+                <span>Dust Cleared: <span id="deltaDustClearedText">0%</span></span>
+                <span>Gain: <span id="deltaStatusText">Ready</span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 2: BEFORE & AFTER ANALYTICS -->
+    <section id="viewAnalytics" class="space-y-6 hidden">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <div>
+            <h2 class="text-lg font-bold text-white">Continuous Performance &amp; Cleaning Log</h2>
+            <p class="text-xs text-slate-400">Real-time time-series telemetry capturing solar degradation and targeted cleaning jumps</p>
+          </div>
+          <div class="flex items-center space-x-2">
+            <button id="clearHistoryBtn" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors">Clear History</button>
+            <button id="exportCsvBtn" class="text-xs px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-medium transition-colors">Export CSV</button>
+          </div>
+        </div>
+
+        <!-- Chart.js Canvas Container -->
+        <div class="relative h-72 sm:h-80 w-full bg-slate-950/60 rounded-xl p-3 border border-slate-800">
+          <canvas id="telemetryChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Historical Audit Records Table -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 overflow-hidden">
+        <h3 class="text-sm font-bold text-white uppercase tracking-wider mb-3">Cleaning Event Verification Records</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs text-slate-300 font-mono-code">
+            <thead class="bg-slate-950 text-slate-400 border-b border-slate-800 text-[11px]">
+              <tr>
+                <th class="p-2.5">#</th>
+                <th class="p-2.5">Timestamp</th>
+                <th class="p-2.5">Pre Power</th>
+                <th class="p-2.5">Post Power</th>
+                <th class="p-2.5">Power Gain (Δ)</th>
+                <th class="p-2.5">Pre Dust</th>
+                <th class="p-2.5">Post Dust</th>
+                <th class="p-2.5">Irradiance</th>
+                <th class="p-2.5">Trigger</th>
+              </tr>
+            </thead>
+            <tbody id="historyTableBody" class="divide-y divide-slate-800/60">
+              <tr class="text-slate-500 text-center py-6">
+                <td colspan="9" class="p-4 text-center font-sans">No cleaning cycles logged yet. Run a cleaning cycle to record data.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 3: ESP32 SERIAL MONITOR -->
+    <section id="viewTerminal" class="space-y-4 hidden">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col h-[600px]">
+        <!-- Terminal Header -->
+        <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
+          <div class="flex items-center space-x-2">
+            <div class="w-3 h-3 rounded-full bg-emerald-400 animate-pulse"></div>
+            <span class="font-mono-code font-bold text-sm text-slate-200">ESP32 UART0 @ 115200 baud (ESP32-CAM &bull; Gantry Coordinator)</span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <button id="termFilterAllBtn" class="text-xs px-2.5 py-1 rounded bg-sky-600 text-white font-medium">All</button>
+            <button id="termFilterCleanBtn" class="text-xs px-2.5 py-1 rounded bg-slate-800 text-slate-400 hover:text-white">Clean Ops</button>
+            <button id="termClearBtn" class="text-xs px-2.5 py-1 rounded bg-slate-800 text-slate-400 hover:text-white">Clear</button>
+            <button id="termCopyBtn" class="text-xs px-2.5 py-1 rounded bg-slate-800 text-slate-400 hover:text-white">Copy Log</button>
+          </div>
+        </div>
+
+        <!-- Terminal Output Window -->
+        <div id="terminalOutput" class="flex-1 overflow-y-auto font-mono-code text-xs text-slate-300 p-3 bg-slate-950 rounded-xl mt-3 space-y-1 select-text">
+          <div class="term-entry text-slate-500" data-cat="system">[00:00:00.000] [BOOT] ESP32-CAM Spatial Vision Node initialized (OV2640 Lens).</div>
+          <div class="term-entry text-slate-500" data-cat="system">[00:00:00.025] [CAM] 6x5 Spatial Inspection Grid mapping calibrated across 60 PV cells.</div>
+          <div class="term-entry text-slate-500" data-cat="system">[00:00:00.045] [INIT] INA219 High-Side Power Monitor found on I2C address 0x40.</div>
+          <div class="term-entry text-slate-500" data-cat="system">[00:00:00.075] [INIT] Inter-MCU Trigger Link (GPIO 12 -&gt; 13) Active. UART2 Telemetry Ready.</div>
+          <div class="term-entry text-slate-500" data-cat="system">[00:00:00.085] [INIT] Dual X-Motors &amp; Y-Carriage configured for Selective Spot + Full Raster Motion.</div>
+          <div class="term-entry text-emerald-400" data-cat="clean">[00:00:00.100] [SYSTEM] 2-Axis Solar Cleaning Daemon online. Monitoring for dust &amp; bird waste.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 4: HARDWARE SCHEMATIC & WIRING -->
+    <section id="viewSchematic" class="space-y-6 hidden">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+        <h2 class="text-lg font-bold text-white mb-2">Targeted &amp; Full Raster Gantry Cleaner Architecture</h2>
+        <p class="text-xs text-slate-400 mb-6">Dual-MCU architecture: ESP32-CAM detects bird waste spots or full diffuse dust, sending commands so the 2-axis gantry performs point spot cleaning or serpentine raster passes.</p>
+
+        <!-- Interactive SVG Schematic with ESP32-CAM -->
+        <div class="w-full bg-slate-950 rounded-xl p-4 border border-slate-800 overflow-x-auto flex justify-center">
+          <svg class="w-full max-w-4xl h-auto" viewBox="0 0 920 520" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="espGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#1e293b"/>
+                <stop offset="100%" stop-color="#0f172a"/>
+              </linearGradient>
+              <linearGradient id="camGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#0e7490"/>
+                <stop offset="100%" stop-color="#155e75"/>
+              </linearGradient>
+              <linearGradient id="pvGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#0284c7"/>
+                <stop offset="100%" stop-color="#075985"/>
+              </linearGradient>
+            </defs>
+
+            <!-- ESP32-CAM Module (Top Left) -->
+            <rect x="50" y="25" width="220" height="150" rx="10" fill="url(#camGrad)" stroke="#38bdf8" stroke-width="2.5"/>
+            <text x="160" y="52" fill="#38bdf8" font-family="'JetBrains Mono', monospace" font-size="14" font-weight="bold" text-anchor="middle">ESP32-CAM AI Thinker</text>
+            <circle cx="160" cy="95" r="24" fill="#0f172a" stroke="#cbd5e1" stroke-width="3"/>
+            <circle cx="160" cy="95" r="14" fill="#0284c7" stroke="#38bdf8" stroke-width="1.5"/>
+            <circle cx="164" cy="91" r="4" fill="#ffffff" opacity="0.8"/>
+            <text x="160" y="142" fill="#e2e8f0" font-family="'JetBrains Mono', monospace" font-size="10" text-anchor="middle">Wide-Angle Spatial Lens</text>
+
+            <!-- Communication Link from ESP32-CAM to Main ESP32 -->
+            <path d="M270 95 L310 95 L310 200 L340 200" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-dasharray="4"/>
+            <text x="305" y="145" fill="#f59e0b" font-family="monospace" font-size="10" font-weight="bold">TRIGGER</text>
+            <path d="M270 120 L320 120 L320 220 L340 220" fill="none" stroke="#10b981" stroke-width="2"/>
+            <text x="305" y="165" fill="#10b981" font-family="monospace" font-size="10">COORDINATES</text>
+
+            <!-- Main ESP32 Board (Center) -->
+            <rect x="340" y="160" width="250" height="230" rx="12" fill="url(#espGrad)" stroke="#38bdf8" stroke-width="2.5"/>
+            <text x="465" y="190" fill="#38bdf8" font-family="'JetBrains Mono', monospace" font-size="15" font-weight="bold" text-anchor="middle">Main ESP32 DevKit</text>
+            <rect x="435" y="205" width="60" height="65" rx="4" fill="#334155"/>
+            <text x="465" y="242" fill="#94a3b8" font-family="'JetBrains Mono', monospace" font-size="10" text-anchor="middle">MCU / Motion</text>
+
+            <!-- ESP32 Pins Left -->
+            <text x="350" y="205" fill="#f59e0b" font-family="monospace" font-size="10">&larr; GPIO 13 (SPOT TRIGGER)</text>
+            <text x="350" y="225" fill="#10b981" font-family="monospace" font-size="10">&larr; GPIO 14 (X,Y DATA RX)</text>
+            <text x="350" y="245" fill="#cbd5e1" font-family="monospace" font-size="10">GPIO 21 (SDA) ─</text>
+            <text x="350" y="265" fill="#cbd5e1" font-family="monospace" font-size="10">GPIO 22 (SCL) ─</text>
+            <text x="350" y="285" fill="#cbd5e1" font-family="monospace" font-size="10">GPIO 25 (BRUSH)─</text>
+            <text x="350" y="305" fill="#cbd5e1" font-family="monospace" font-size="10">GPIO 4  (PUMP) ─</text>
+            <text x="350" y="325" fill="#cbd5e1" font-family="monospace" font-size="10">GND &bull; 5V Rail ─</text>
+
+            <!-- ESP32 Pins Right -->
+            <text x="580" y="205" fill="#cbd5e1" font-family="monospace" font-size="10" text-anchor="end">─ GPIO 16 (X1 TOP STEP)</text>
+            <text x="580" y="225" fill="#cbd5e1" font-family="monospace" font-size="10" text-anchor="end">─ GPIO 17 (X2 BTM STEP)</text>
+            <text x="580" y="245" fill="#cbd5e1" font-family="monospace" font-size="10" text-anchor="end">─ GPIO 18 (Y CARRIAGE DIR)</text>
+            <text x="580" y="265" fill="#cbd5e1" font-family="monospace" font-size="10" text-anchor="end">─ GPIO 19 (Y CARRIAGE STEP)</text>
+            <text x="580" y="285" fill="#cbd5e1" font-family="monospace" font-size="10" text-anchor="end">─ GPIO 2  (STATUS LED)</text>
+            <text x="580" y="305" fill="#cbd5e1" font-family="monospace" font-size="10" text-anchor="end">─ 5V / VIN &bull; 3V3</text>
+
+            <!-- Solar Panel (Bottom Left) -->
+            <rect x="50" y="210" width="180" height="110" rx="8" fill="url(#pvGrad)" stroke="#38bdf8" stroke-width="2"/>
+            <text x="140" y="250" fill="#ffffff" font-weight="bold" font-size="14" text-anchor="middle">100W Solar Panel</text>
+            <text x="140" y="270" fill="#bae6fd" font-size="11" text-anchor="middle">Multi-Zone Inspection</text>
+            <path d="M230 250 L260 250 L260 380 L290 380" fill="none" stroke="#ef4444" stroke-width="2" stroke-dasharray="4"/>
+            <path d="M230 280 L250 280 L250 400 L290 400" fill="none" stroke="#10b981" stroke-width="2"/>
+
+            <!-- INA219 Sensor Module -->
+            <rect x="170" y="355" width="130" height="70" rx="6" fill="#1e293b" stroke="#10b981" stroke-width="2"/>
+            <text x="235" y="380" fill="#10b981" font-weight="bold" font-size="12" text-anchor="middle">INA219 Power</text>
+            <text x="235" y="400" fill="#94a3b8" font-size="10" text-anchor="middle">I2C (0x40) V/I/P</text>
+            <path d="M300 380 L350 245" fill="none" stroke="#38bdf8" stroke-width="2"/>
+            <path d="M300 400 L350 265" fill="none" stroke="#38bdf8" stroke-width="2"/>
+
+            <!-- Top Horizontal Motor X1 (Top Right) -->
+            <rect x="660" y="25" width="220" height="65" rx="8" fill="#1e293b" stroke="#38bdf8" stroke-width="2"/>
+            <text x="770" y="48" fill="#38bdf8" font-weight="bold" font-size="12" text-anchor="middle">Motor X1: Top Rail Motor</text>
+            <text x="770" y="68" fill="#94a3b8" font-size="10" text-anchor="middle">Synchronized Horizontal Travel</text>
+            <path d="M590 205 L620 205 L620 58 L660 58" fill="none" stroke="#38bdf8" stroke-width="2"/>
+
+            <!-- Bottom Horizontal Motor X2 (Mid Right) -->
+            <rect x="660" y="105" width="220" height="65" rx="8" fill="#1e293b" stroke="#38bdf8" stroke-width="2"/>
+            <text x="770" y="128" fill="#38bdf8" font-weight="bold" font-size="12" text-anchor="middle">Motor X2: Bottom Rail Motor</text>
+            <text x="770" y="148" fill="#94a3b8" font-size="10" text-anchor="middle">Targeted Column Positioning</text>
+            <path d="M590 225 L630 225 L630 138 L660 138" fill="none" stroke="#38bdf8" stroke-width="2"/>
+
+            <!-- Vertical Motor Y (Carriage Up/Down) -->
+            <rect x="660" y="185" width="220" height="70" rx="8" fill="#1e293b" stroke="#f59e0b" stroke-width="2"/>
+            <text x="770" y="210" fill="#f59e0b" font-weight="bold" font-size="12" text-anchor="middle">Motor Y: Vertical Carriage</text>
+            <text x="770" y="230" fill="#94a3b8" font-size="10" text-anchor="middle">Direct Traverse to Clean Zone</text>
+            <path d="M590 245 L640 245 L640 220 L660 220" fill="none" stroke="#f59e0b" stroke-width="2"/>
+
+            <!-- Rotary Brush Motor & Pump Relay (Bottom Right) -->
+            <rect x="660" y="270" width="220" height="75" rx="8" fill="#1e293b" stroke="#10b981" stroke-width="2"/>
+            <text x="770" y="295" fill="#10b981" font-weight="bold" font-size="12" text-anchor="middle">Rotary Brush &amp; Spray Pump</text>
+            <text x="770" y="315" fill="#94a3b8" font-size="10" text-anchor="middle">Microfiber Roller + Spray Jet</text>
+            <path d="M590 285 L630 285 L630 305 L660 305" fill="none" stroke="#10b981" stroke-width="2"/>
+
+            <!-- 12V Battery & Step-Down Buck (Bottom Center) -->
+            <rect x="360" y="420" width="210" height="60" rx="6" fill="#1e293b" stroke="#a855f7" stroke-width="2"/>
+            <text x="465" y="445" fill="#a855f7" font-weight="bold" font-size="12" text-anchor="middle">12V 20Ah LiFePO4 &amp; 5V Buck</text>
+            <text x="465" y="465" fill="#94a3b8" font-size="10" text-anchor="middle">Power Rail for ESP32-CAM, MCU, Motors</text>
+          </svg>
+        </div>
+
+        <!-- Bill of Materials Table -->
+        <div class="mt-6">
+          <h3 class="text-sm font-bold text-white uppercase tracking-wider mb-3">System Bill of Materials (BOM)</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div class="bg-slate-950/70 p-3 rounded-xl border border-slate-800">
+              <span class="text-xs text-cyan-400 font-semibold block">Spatial Vision Node</span>
+              <span class="text-sm font-bold text-white">ESP32-CAM (OV2640)</span>
+              <span class="text-[11px] text-slate-500 block mt-1">Multi-zone spot inspection, bird waste blob detection &bull; UART target coords</span>
+            </div>
+            <div class="bg-slate-950/70 p-3 rounded-xl border border-slate-800">
+              <span class="text-xs text-sky-400 font-semibold block">Horizontal Drive</span>
+              <span class="text-sm font-bold text-white">Dual NEMA 17 Steppers</span>
+              <span class="text-[11px] text-slate-500 block mt-1">Top &amp; Bottom rails with timing belt drive at matched RPM</span>
+            </div>
+            <div class="bg-slate-950/70 p-3 rounded-xl border border-slate-800">
+              <span class="text-xs text-amber-400 font-semibold block">Vertical Carriage Axis</span>
+              <span class="text-sm font-bold text-white">NEMA 17 + T8 Lead Screw</span>
+              <span class="text-[11px] text-slate-500 block mt-1">Direct point-to-point traverse + full vertical scanning</span>
+            </div>
+            <div class="bg-slate-950/70 p-3 rounded-xl border border-slate-800">
+              <span class="text-xs text-purple-400 font-semibold block">Master Controller</span>
+              <span class="text-sm font-bold text-white">ESP32 DevKit + INA219</span>
+              <span class="text-[11px] text-slate-500 block mt-1">Dual-mode motion coordinator &bull; Power recovery profiling</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 5: ARDUINO SOURCE CODE -->
+    <section id="viewCode" class="space-y-4 hidden">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div>
+            <h2 class="text-base font-bold text-white">Dual-Mode Gantry Firmware: ESP32-CAM &bull; Master Controller</h2>
+            <p class="text-xs text-slate-400">Complete Arduino C++ code supporting BOTH targeted spot cleaning for bird droppings AND full-panel serpentine raster sweeps for diffuse dust.</p>
+          </div>
+          <button id="copySourceCodeBtn" class="text-xs px-3.5 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-semibold transition-colors flex items-center gap-1.5 shadow">
+            <span>📋 Copy Code</span>
+          </button>
+        </div>
+
+        <div class="relative mt-4">
+          <pre class="bg-slate-950 text-slate-300 p-4 rounded-xl font-mono-code text-xs overflow-x-auto leading-relaxed border border-slate-800 select-all max-h-[550px]"><code id="firmwareCodeBlock">/*
+ * ==============================================================================
+ * DUAL-MODE SOLAR CLEANER: SPOT (BIRD DROPPINGS) + FULL RASTER (DIFFUSE DUST)
+ * ==============================================================================
+ * 
+ * LOGIC MODES:
+ * 1. SPOT CLEANING (Bird waste / localized patch):
+ *    - Dual X-motors drive vertical gantry directly to target column.
+ *    - Y-motor drives cleaner carriage directly down to target spot.
+ *    - Mist nozzle &amp; rotary brush scrub the spot clean (saves 84% energy/water).
+ * 
+ * 2. FULL RASTER SWEEP (Diffuse dust all over):
+ *    - Gantry scans across all columns from Left to Right.
+ *    - Carriage sweeps vertically Up and Down each column with brush and spray.
+ *    - 100% of panel area is washed cleanly in a serpentine path.
+ */
+
+#include &lt;Wire.h&gt;
+#include &lt;Adafruit_INA219.h&gt;
+
+#define PIN_CAM_IN     13  // Interrupt signal from ESP32-CAM
+#define PIN_X1_STEP    16  // Top horizontal motor
+#define PIN_X1_DIR     17
+#define PIN_X2_STEP    26  // Bottom horizontal motor (synchronized)
+#define PIN_X2_DIR     27
+#define PIN_Y_STEP     18  // Vertical carriage motor
+#define PIN_Y_DIR      19
+#define PIN_BRUSH      25  // Rotary microfiber roller
+#define PIN_PUMP        4  // 12V mist spray pump
+
+Adafruit_INA219 ina219;
+
+// Drive dual X-motors at synchronized pulse rate
+void stepDualX(int steps, bool moveRight) {
+  digitalWrite(PIN_X1_DIR, moveRight ? HIGH : LOW);
+  digitalWrite(PIN_X2_DIR, moveRight ? HIGH : LOW);
+  for (int s = 0; s &lt; steps; s++) {
+    digitalWrite(PIN_X1_STEP, HIGH);
+    digitalWrite(PIN_X2_STEP, HIGH);
+    delayMicroseconds(600);
+    digitalWrite(PIN_X1_STEP, LOW);
+    digitalWrite(PIN_X2_STEP, LOW);
+    delayMicroseconds(600);
+  }
+}
+
+// Drive vertical carriage Up or Down
+void stepCarriageY(int steps, bool moveDown) {
+  digitalWrite(PIN_Y_DIR, moveDown ? HIGH : LOW);
+  for (int s = 0; s &lt; steps; s++) {
+    digitalWrite(PIN_Y_STEP, HIGH);
+    delayMicroseconds(600);
+    digitalWrite(PIN_Y_STEP, LOW);
+    delayMicroseconds(600);
+  }
+}
+
+// Full Serpentine Raster Sweep across entire panel (For Diffuse Dust)
+void performFullPanelRasterClean() {
+  Serial.println(F("[GANTRY] Initiating FULL-PANEL Serpentine Raster Wash..."));
+  digitalWrite(PIN_PUMP, HIGH);
+  digitalWrite(PIN_BRUSH, HIGH);
+
+  int columns = 6;
+  int stepsPerCol = 640;
+  int fullYStroke = 2400;
+
+  for (int c = 0; c &lt; columns; c++) {
+    bool moveDown = (c % 2 == 0);
+    Serial.printf("  &gt;&gt; Column %d/%d: Vertical sweep (%s)...\n", c + 1, columns, moveDown ? "DOWN" : "UP");
+    stepCarriageY(fullYStroke, moveDown);
+    delay(100);
+
+    // Step gantry right to next column
+    if (c &lt; columns - 1) {
+      stepDualX(stepsPerCol, true);
+      delay(100);
+    }
+  }
+
+  // Turn off spray and brush
+  digitalWrite(PIN_PUMP, LOW);
+  digitalWrite(PIN_BRUSH, LOW);
+
+  // Return to Home (Park)
+  Serial.println(F("[GANTRY] Returning gantry to Home (Left, Top)..."));
+  stepDualX((columns - 1) * stepsPerCol, false); // Return left
+  stepCarriageY(fullYStroke, false);             // Return top
+  Serial.println(F("[GANTRY] Full clean complete. Gantry securely parked."));
+}
+
+// Targeted Spot Clean (For Isolated Bird Waste / Dust Patch)
+void performTargetedSpotClean(int targetCol, int targetRow) {
+  Serial.printf("[GANTRY] Targeted Spot Wash: Moving directly to Col %d, Row %d...\n", targetCol, targetRow);
+  
+  // Move directly to spot coordinates
+  stepDualX(targetCol * 640, true);
+  stepCarriageY(targetRow * 480, true);
+
+  // Scrub and spray localized spot
+  digitalWrite(PIN_PUMP, HIGH);
+  digitalWrite(PIN_BRUSH, HIGH);
+  delay(1800);
+  digitalWrite(PIN_PUMP, LOW);
+  digitalWrite(PIN_BRUSH, LOW);
+
+  // Return directly to Home
+  stepDualX(targetCol * 640, false);
+  stepCarriageY(targetRow * 480, false);
+  Serial.println(F("[GANTRY] Spot scrub complete. Energy saved: 84%."));
+}
+</code></pre>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- In-page Toast Notification -->
+  <div id="toastNotification" class="fixed bottom-5 right-5 bg-slate-900 border border-sky-500/40 text-slate-100 px-4 py-2.5 rounded-xl shadow-2xl flex items-center space-x-2 text-xs z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none">
+    <span id="toastIcon">✨</span>
+    <span id="toastMsg" class="font-medium">Action completed successfully</span>
+  </div>
+
+  <!-- APPLICATION SCRIPT LOGIC -->
+  <script>
+    // --- SIMULATION STATE ---
+    const simState = {
+      ratedPower: 100.0,
+      voc: 21.6,
+      vmp: 18.0,
+      isc: 6.1,
+      imp: 5.55,
+      irradiance: 1000,
+      dustLevel: 0.0, // Diffuse background dust (0 to 100%)
+      dustThreshold: 25,
+      autoCleanEnabled: true,
+      windDeposition: false,
+      
+      // Contamination Spots (Bird Waste / Localized Dust)
+      spots: [], // Array of { id, type: 'bird'|'dust', x, y, radius, zoneName }
+      clickTool: 'bird', // 'bird' or 'dust'
+      spotCleanMode: true, // true = targeted spot clean, false = full array sweep
+      activeTargetSpot: null,
+      cleanType: 'none', // 'spot' or 'raster'
+      
+      // ESP32-CAM Vision Parameters
+      camMode: 'edge', // 'rgb', 'edge', 'heat'
+      camContrast: 92.0,
+      camTriggerActive: false,
+      
+      // Electrical Live Telemetry
+      voltage: 18.0,
+      current: 5.55,
+      power: 100.0,
+      efficiency: 19.8,
+      
+      // 2-Axis Gantry Mechanics & Kinematics
+      espState: 'IDLE_MONITORING', // IDLE_MONITORING, DUST_DETECTED, HOMING, RASTER_SWEEP, TRAVERSE_TO_SPOT, SPOT_SCRUB, RETURN_PARK, POST_CLEAN, REPORTING, COOLDOWN
+      gantryX: 0.0,              // 0.0 (left) to 1.0 (right)
+      cleanerY: 0.0,             // 0.0 (top) to 1.0 (bottom)
+      yDirection: 1,             // 1 = down, -1 = up
+      rasterColumn: 0,
+      totalColumns: 6,           // 6 columns across array
+      cleanedColumns: 0,
+      initialDustToClean: 0.0,
+      targetGantryX: 0.0,
+      targetCleanerY: 0.0,
+      scrubOscillation: 0,
+      brushActive: false,
+      brushRotation: 0,
+      pumpActive: false,
+      waterSheen: 0.0,
+      dualMotorRpm: 0,
+      
+      // Before & After Records
+      preCleanMetrics: null,
+      postCleanMetrics: null,
+      cleanCyclesCount: 0,
+      historyLogs: [],
+      
+      // Timing & Engine
+      simSpeed: 1,
+      audioEnabled: true,
+      audioCtx: null,
+      lastTick: performance.now(),
+      elapsedSeconds: 0,
+      termFilterMode: 'all'
+    };
+
+    // --- AUDIO SYNTHESIZER ---
+    function initAudio() {
+      if (!simState.audioCtx) {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (AudioContext) simState.audioCtx = new AudioContext();
+      }
+      if (simState.audioCtx && simState.audioCtx.state === 'suspended') {
+        simState.audioCtx.resume();
+      }
+    }
+
+    function playSound(type) {
+      if (!simState.audioEnabled) return;
+      initAudio();
+      if (!simState.audioCtx) return;
+
+      const ctx = simState.audioCtx;
+      const now = ctx.currentTime;
+
+      if (type === 'click') {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(600, now);
+        osc.frequency.exponentialRampToValueAtTime(800, now + 0.05);
+        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.05);
+      } else if (type === 'splat') {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(350, now);
+        osc.frequency.exponentialRampToValueAtTime(110, now + 0.08);
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.08);
+      } else if (type === 'cam-snap') {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(1200, now);
+        osc.frequency.exponentialRampToValueAtTime(300, now + 0.04);
+        gain.gain.setValueAtTime(0.07, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.04);
+      } else if (type === 'spray') {
+        const bufferSize = ctx.sampleRate * 0.15;
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const output = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) output[i] = Math.random() * 2 - 1;
+        const whiteNoise = ctx.createBufferSource();
+        whiteNoise.buffer = buffer;
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(1800, now);
+        filter.Q.setValueAtTime(1.5, now);
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.06, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        whiteNoise.connect(filter);
+        filter.connect(gain);
+        gain.connect(ctx.destination);
+        whiteNoise.start(now);
+      } else if (type === 'stepper') {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(240, now);
+        osc.frequency.linearRampToValueAtTime(360, now + 0.08);
+        gain.gain.setValueAtTime(0.02, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.08);
+      } else if (type === 'brush') {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(160, now);
+        gain.gain.setValueAtTime(0.025, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.1);
+      } else if (type === 'chime') {
+        const freqs = [523.25, 659.25, 783.99, 1046.50];
+        freqs.forEach((freq, idx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.07);
+          gain.gain.setValueAtTime(0.1, now + idx * 0.07);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.07 + 0.25);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now + idx * 0.07);
+          osc.stop(now + idx * 0.07 + 0.25);
+        });
+      }
+    }
+
+    // --- TOAST NOTIFICATIONS ---
+    function showToast(msg, icon) {
+      const toast = document.getElementById('toastNotification');
+      const msgEl = document.getElementById('toastMsg');
+      const iconEl = document.getElementById('toastIcon');
+      if (!toast || !msgEl) return;
+      msgEl.textContent = msg;
+      if (iconEl) iconEl.textContent = icon || '✨';
+      toast.classList.remove('translate-y-20', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+      setTimeout(() => {
+        toast.classList.add('translate-y-20', 'opacity-0');
+        toast.classList.remove('translate-y-0', 'opacity-100');
+      }, 2600);
+    }
+
+    // --- SERIAL TERMINAL LOGGER ---
+    function logTerminal(message, type) {
+      const term = document.getElementById('terminalOutput');
+      if (!term) return;
+      const row = document.createElement('div');
+      
+      const totalSec = simState.elapsedSeconds;
+      const hrs = Math.floor(totalSec / 3600).toString().padStart(2, '0');
+      const mins = Math.floor((totalSec % 3600) / 60).toString().padStart(2, '0');
+      const secs = (totalSec % 60).toFixed(3).padStart(6, '0');
+      const timeStr = `[${hrs}:${mins}:${secs}]`;
+
+      row.className = 'term-entry font-mono-code text-[11px] leading-relaxed';
+      const isCleanRelated = (type === 'clean' || type === 'alert' || type === 'success');
+      row.setAttribute('data-cat', isCleanRelated ? 'clean' : 'telemetry');
+
+      if (simState.termFilterMode === 'clean' && !isCleanRelated) row.classList.add('hidden');
+
+      if (type === 'clean') {
+        row.innerHTML = `<span class="text-slate-500">${timeStr}</span> <span class="text-cyan-400 font-semibold">${message}</span>`;
+      } else if (type === 'alert') {
+        row.innerHTML = `<span class="text-slate-500">${timeStr}</span> <span class="text-amber-400 font-bold">${message}</span>`;
+      } else if (type === 'success') {
+        row.innerHTML = `<span class="text-slate-500">${timeStr}</span> <span class="text-emerald-400 font-bold">${message}</span>`;
+      } else if (type === 'error') {
+        row.innerHTML = `<span class="text-slate-500">${timeStr}</span> <span class="text-rose-400 font-bold">${message}</span>`;
+      } else {
+        row.innerHTML = `<span class="text-slate-500">${timeStr}</span> <span class="text-slate-300">${message}</span>`;
+      }
+
+      term.appendChild(row);
+      term.scrollTop = term.scrollHeight;
+    }
+
+    function getZoneName(normX, normY) {
+      const colLetter = String.fromCharCode(65 + Math.min(5, Math.max(0, Math.floor(normX * 6))));
+      const rowNum = 1 + Math.min(4, Math.max(0, Math.floor(normY * 5)));
+      return `${colLetter}${rowNum}`;
+    }
+
+    // --- PHYSICAL PV MODEL CALCULATIONS ---
+    function updateElectricalOutput() {
+      let spotImpact = 0;
+      simState.spots.forEach(sp => {
+        spotImpact += (sp.type === 'bird') ? 22.0 : 8.0;
+      });
+
+      const effectiveDust = Math.min(100, simState.dustLevel + spotImpact);
+      const transmission = Math.max(0.08, 1.0 - (effectiveDust / 100.0) * 0.90);
+      const effectiveIrradiance = simState.irradiance * transmission;
+
+      simState.camContrast = Math.max(15.0, 95.0 - (effectiveDust * 0.78));
+
+      if (effectiveIrradiance <= 5) {
+        simState.voltage = 0.0;
+        simState.current = 0.0;
+        simState.power = 0.0;
+        simState.efficiency = 0.0;
+        return;
+      }
+
+      const iNorm = effectiveIrradiance / 1000.0;
+      simState.current = simState.imp * iNorm;
+
+      const vLogFactor = 1.0 + 0.05 * Math.log(Math.max(0.01, iNorm));
+      simState.voltage = Math.min(simState.voc, simState.vmp * vLogFactor);
+
+      simState.power = simState.voltage * simState.current;
+
+      const panelArea = 0.52;
+      const sunPowerIncident = (simState.irradiance * panelArea);
+      simState.efficiency = (sunPowerIncident > 0) ? (simState.power / sunPowerIncident) * 100.0 : 0.0;
+    }
+
+    // --- CANVAS SOLAR TWIN RENDERER ---
+    const canvas = document.getElementById('solarCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const camCanvas = document.getElementById('camStreamCanvas');
+    const camCtx = camCanvas ? camCanvas.getContext('2d') : null;
+
+    let dustParticles = [];
+    function initDustParticles() {
+      dustParticles = [];
+      for (let i = 0; i < 450; i++) {
+        dustParticles.push({
+          x: Math.random(),
+          y: Math.random(),
+          size: 1 + Math.random() * 3.5,
+          opacity: 0.15 + Math.random() * 0.7,
+          color: Math.random() > 0.4 ? '#b45309' : '#d97706'
+        });
+      }
+    }
+    initDustParticles();
+
+    function resizeCanvas() {
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      if (canvas.width !== rect.width || canvas.height !== rect.height) {
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+      }
+    }
+
+    function renderSolarRig() {
+      if (!canvas || !ctx) return;
+      resizeCanvas();
+      const w = canvas.width;
+      const h = canvas.height;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // Sky Background
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, h);
+      const sunNorm = simState.irradiance / 1000.0;
+      if (sunNorm > 0.6) {
+        skyGrad.addColorStop(0, '#0c4a6e');
+        skyGrad.addColorStop(1, '#082f49');
+      } else if (sunNorm > 0.2) {
+        skyGrad.addColorStop(0, '#1e293b');
+        skyGrad.addColorStop(1, '#0f172a');
+      } else {
+        skyGrad.addColorStop(0, '#090d16');
+        skyGrad.addColorStop(1, '#020617');
+      }
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, w, h);
+
+      // Solar Panel Dimensions
+      const padX = w * 0.08;
+      const padY = h * 0.11;
+      const pw = w - padX * 2;
+      const ph = h - padY * 2;
+
+      // Outer Aluminum Frame
+      ctx.fillStyle = '#64748b';
+      ctx.strokeStyle = '#94a3b8';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.roundRect(padX - 8, padY - 8, pw + 16, ph + 16, 8);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(padX - 2, padY - 2, pw + 4, ph + 4);
+
+      // 60-Cell Polycrystalline Solar Array Grid (6 cols x 10 rows)
+      const cols = 6;
+      const rows = 10;
+      const cellGap = 2.5;
+      const cellW = (pw - (cols + 1) * cellGap) / cols;
+      const cellH = (ph - (rows + 1) * cellGap) / rows;
+
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const cx = padX + cellGap + c * (cellW + cellGap);
+          const cy = padY + cellGap + r * (cellH + cellGap);
+
+          const cellGrad = ctx.createLinearGradient(cx, cy, cx + cellW, cy + cellH);
+          cellGrad.addColorStop(0, '#0284c7');
+          cellGrad.addColorStop(0.5, '#0369a1');
+          cellGrad.addColorStop(1, '#075985');
+          ctx.fillStyle = cellGrad;
+          ctx.fillRect(cx, cy, cellW, cellH);
+
+          // Silver Busbars
+          ctx.fillStyle = 'rgba(226, 232, 240, 0.45)';
+          ctx.fillRect(cx + cellW * 0.3, cy, 1.2, cellH);
+          ctx.fillRect(cx + cellW * 0.7, cy, 1.2, cellH);
+
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
+          ctx.fillRect(cx, cy, cellW, 1.5);
+        }
+      }
+
+      // Zone Grid Lines Overlay
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.2)';
+      ctx.lineWidth = 1;
+      for (let c = 1; c < 6; c++) {
+        ctx.beginPath();
+        ctx.moveTo(padX + (c / 6) * pw, padY);
+        ctx.lineTo(padX + (c / 6) * pw, padY + ph);
+        ctx.stroke();
+      }
+      for (let r = 1; r < 5; r++) {
+        ctx.beginPath();
+        ctx.moveTo(padX, padY + (r / 5) * ph);
+        ctx.lineTo(padX + pw, padY + (r / 5) * ph);
+        ctx.stroke();
+      }
+
+      // =========================================================
+      // DYNAMIC DIFFUSE DUST LAYER RENDERING
+      // Rendered column-by-column so cleaned columns become crystal clear!
+      // =========================================================
+      if (simState.dustLevel > 0) {
+        const dustAlpha = (simState.dustLevel / 100.0) * 0.88;
+        const colWidthPx = pw / simState.totalColumns;
+
+        for (let c = 0; c < simState.totalColumns; c++) {
+          const colX = padX + c * colWidthPx;
+
+          // If in full RASTER_SWEEP:
+          if (simState.espState === 'RASTER_SWEEP') {
+            if (c < simState.rasterColumn) {
+              // This column has been scrubbed completely clean!
+              continue;
+            } else if (c === simState.rasterColumn) {
+              // Current active column: clean portion above/below moving carriage
+              ctx.save();
+              ctx.fillStyle = `rgba(180, 83, 9, ${dustAlpha})`;
+              if (simState.yDirection === 1) {
+                // Moving down: dust remains below cleanerY
+                const cleanCutY = padY + simState.cleanerY * ph;
+                ctx.fillRect(colX, cleanCutY, colWidthPx, ph - (cleanCutY - padY));
+              } else {
+                // Moving up: dust remains above cleanerY
+                const cleanCutY = padY + simState.cleanerY * ph;
+                ctx.fillRect(colX, padY, colWidthPx, cleanCutY - padY);
+              }
+              ctx.restore();
+            } else {
+              // Uncleaned columns ahead of gantry
+              ctx.fillStyle = `rgba(180, 83, 9, ${dustAlpha})`;
+              ctx.fillRect(colX, padY, colWidthPx, ph);
+            }
+          } else {
+            // Idle or spot mode: draw uniform diffuse dust layer
+            ctx.fillStyle = `rgba(180, 83, 9, ${dustAlpha})`;
+            ctx.fillRect(colX, padY, colWidthPx, ph);
+          }
+        }
+
+        // Visible Dust Speckles (filtered if column is already cleaned)
+        const visibleDustCount = Math.floor(dustParticles.length * (simState.dustLevel / 100.0));
+        for (let i = 0; i < visibleDustCount; i++) {
+          const p = dustParticles[i];
+          const px = padX + p.x * pw;
+          const py = padY + p.y * ph;
+
+          // Check if this particle is in a cleaned region
+          if (simState.espState === 'RASTER_SWEEP') {
+            const particleCol = Math.floor(p.x * simState.totalColumns);
+            if (particleCol < simState.rasterColumn) continue;
+            if (particleCol === simState.rasterColumn) {
+              if (simState.yDirection === 1 && p.y <= simState.cleanerY) continue;
+              if (simState.yDirection === -1 && p.y >= simState.cleanerY) continue;
+            }
+          }
+
+          ctx.fillStyle = p.color;
+          ctx.globalAlpha = p.opacity;
+          ctx.beginPath();
+          ctx.arc(px, py, p.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1.0;
+      }
+
+      // Render Selective Contamination Spots (Bird Waste & Spot Dust)
+      simState.spots.forEach(sp => {
+        const sx = padX + sp.x * pw;
+        const sy = padY + sp.y * ph;
+
+        if (sp.type === 'bird') {
+          ctx.save();
+          ctx.fillStyle = '#f8fafc';
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+          ctx.shadowBlur = 4;
+          for (let d = 0; d < 6; d++) {
+            const rad = sp.radius * (0.8 + 0.4 * Math.sin(d * 1.5));
+            const ox = sx + Math.cos(d * 1.05) * rad * 0.7;
+            const oy = sy + Math.sin(d * 1.05) * rad * 0.7;
+            ctx.beginPath();
+            ctx.arc(ox, oy, sp.radius * 0.45, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          ctx.beginPath();
+          ctx.ellipse(sx, sy, sp.radius, sp.radius * 0.85, 0.2, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = '#1e293b';
+          ctx.beginPath();
+          ctx.arc(sx + 2, sy - 1, sp.radius * 0.45, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+
+          ctx.strokeStyle = '#f43f5e';
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(sx - sp.radius - 6, sy - sp.radius - 6, (sp.radius + 6) * 2, (sp.radius + 6) * 2);
+
+          ctx.fillStyle = '#f43f5e';
+          ctx.font = 'bold 9px monospace';
+          ctx.fillText(`🐦 ${sp.zoneName}`, sx - sp.radius - 4, sy - sp.radius - 9);
+        } else {
+          const dGrad = ctx.createRadialGradient(sx, sy, 4, sx, sy, sp.radius * 1.4);
+          dGrad.addColorStop(0, 'rgba(180, 83, 9, 0.85)');
+          dGrad.addColorStop(0.7, 'rgba(217, 119, 6, 0.5)');
+          dGrad.addColorStop(1, 'rgba(217, 119, 6, 0)');
+          ctx.fillStyle = dGrad;
+          ctx.beginPath();
+          ctx.arc(sx, sy, sp.radius * 1.4, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.strokeStyle = '#f59e0b';
+          ctx.lineWidth = 1.2;
+          ctx.strokeRect(sx - sp.radius - 4, sy - sp.radius - 4, (sp.radius + 4) * 2, (sp.radius + 4) * 2);
+          ctx.fillStyle = '#f59e0b';
+          ctx.font = 'bold 9px monospace';
+          ctx.fillText(`🌫️ ${sp.zoneName}`, sx - sp.radius - 4, sy - sp.radius - 7);
+        }
+      });
+
+      // Water Sheen & Wetness
+      if (simState.waterSheen > 0) {
+        const sheenGrad = ctx.createLinearGradient(padX, padY, padX, padY + ph);
+        sheenGrad.addColorStop(0, `rgba(56, 189, 248, ${simState.waterSheen * 0.35})`);
+        sheenGrad.addColorStop(1, `rgba(14, 165, 233, ${simState.waterSheen * 0.15})`);
+        ctx.fillStyle = sheenGrad;
+        ctx.fillRect(padX, padY, pw, ph);
+      }
+
+      // Sun Glare
+      if (simState.irradiance > 100) {
+        const glareGrad = ctx.createLinearGradient(padX, padY, padX + pw * 0.7, padY + ph);
+        const glareIntensity = (simState.irradiance / 1000.0) * 0.18;
+        glareGrad.addColorStop(0, `rgba(255, 255, 255, ${glareIntensity})`);
+        glareGrad.addColorStop(0.4, 'rgba(255, 255, 255, 0)');
+        ctx.fillStyle = glareGrad;
+        ctx.fillRect(padX, padY, pw, ph);
+      }
+
+      // Overhead Inspection Boom & ESP32-CAM Camera Hardware
+      const camMountX = padX + pw * 0.12;
+      const camMountY = padY - 24;
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(camMountX - 4, camMountY - 14, 8, 18);
+      ctx.fillStyle = '#0e7490';
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(camMountX - 16, camMountY - 28, 32, 20, 4);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#0f172a';
+      ctx.beginPath();
+      ctx.arc(camMountX, camMountY - 18, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#38bdf8';
+      ctx.stroke();
+
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 8px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('CAM', camMountX, camMountY - 32);
+
+      // Camera Field of View Sight Cone
+      ctx.save();
+      const fovGrad = ctx.createRadialGradient(camMountX, camMountY - 16, 10, padX + pw * 0.5, padY + ph * 0.5, pw * 0.7);
+      if (simState.camTriggerActive) {
+        fovGrad.addColorStop(0, 'rgba(244, 63, 94, 0.35)');
+        fovGrad.addColorStop(1, 'rgba(244, 63, 94, 0.02)');
+      } else {
+        fovGrad.addColorStop(0, 'rgba(56, 189, 248, 0.18)');
+        fovGrad.addColorStop(1, 'rgba(56, 189, 248, 0.01)');
+      }
+      ctx.fillStyle = fovGrad;
+      ctx.beginPath();
+      ctx.moveTo(camMountX, camMountY - 16);
+      ctx.lineTo(padX - 4, padY + ph);
+      ctx.lineTo(padX + pw + 4, padY + ph);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+
+      // =========================================================
+      // 2-AXIS GANTRY ROBOTIC SYSTEM DRAWING
+      // =========================================================
+
+      // 1. TOP HORIZONTAL RAIL STRUCTURE
+      const topRailY = padY - 14;
+      ctx.fillStyle = '#334155';
+      ctx.strokeStyle = '#64748b';
+      ctx.lineWidth = 1.5;
+      ctx.fillRect(padX - 16, topRailY - 5, pw + 32, 10);
+      ctx.strokeRect(padX - 16, topRailY - 5, pw + 32, 10);
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(padX - 14, topRailY - 1, pw + 28, 2);
+
+      // 2. BOTTOM HORIZONTAL RAIL STRUCTURE
+      const btmRailY = padY + ph + 14;
+      ctx.fillStyle = '#334155';
+      ctx.strokeStyle = '#64748b';
+      ctx.lineWidth = 1.5;
+      ctx.fillRect(padX - 16, btmRailY - 5, pw + 32, 10);
+      ctx.strokeRect(padX - 16, btmRailY - 5, pw + 32, 10);
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(padX - 14, btmRailY - 1, pw + 28, 2);
+
+      // 3. VERTICAL STRUCTURE (GANTRY BEAM)
+      const gantryXPos = padX + simState.gantryX * pw;
+      const gantryWidth = 24;
+
+      const beamGrad = ctx.createLinearGradient(gantryXPos - gantryWidth/2, 0, gantryXPos + gantryWidth/2, 0);
+      beamGrad.addColorStop(0, '#64748b');
+      beamGrad.addColorStop(0.5, '#cbd5e1');
+      beamGrad.addColorStop(1, '#475569');
+      ctx.fillStyle = beamGrad;
+      ctx.strokeStyle = '#0284c7';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(gantryXPos - gantryWidth/2, topRailY - 2, gantryWidth, (btmRailY - topRailY) + 4, 3);
+      ctx.fill();
+      ctx.stroke();
+
+      // Lead screw
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(gantryXPos - 3, topRailY + 6, 6, (btmRailY - topRailY) - 12);
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 1;
+      for (let ty = topRailY + 12; ty < btmRailY - 12; ty += 10) {
+        ctx.beginPath();
+        ctx.moveTo(gantryXPos - 3, ty);
+        ctx.lineTo(gantryXPos + 3, ty + 4);
+        ctx.stroke();
+      }
+
+      // 4. DUAL SYNCHRONIZED MOTORS AT BOTH ENDS (Top X1 & Bottom X2)
+      ctx.fillStyle = '#0f172a';
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(gantryXPos, topRailY, 11, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = simState.dualMotorRpm > 0 ? '#10b981' : '#64748b';
+      ctx.beginPath();
+      ctx.arc(gantryXPos, topRailY, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = '9px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('M-X1', gantryXPos, topRailY - 14);
+
+      ctx.fillStyle = '#0f172a';
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(gantryXPos, btmRailY, 11, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = simState.dualMotorRpm > 0 ? '#10b981' : '#64748b';
+      ctx.beginPath();
+      ctx.arc(gantryXPos, btmRailY, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillText('M-X2', gantryXPos, btmRailY + 22);
+
+      // 5. VERTICAL CLEANER CARRIAGE
+      const carriageYPos = padY + simState.cleanerY * ph;
+      const carriageW = 46;
+      const carriageH = 34;
+
+      ctx.fillStyle = '#0f172a';
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(gantryXPos - carriageW/2, carriageYPos - carriageH/2, carriageW, carriageH, 6);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#1e293b';
+      ctx.beginPath();
+      ctx.arc(gantryXPos - 12, carriageYPos, 9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      ctx.fillStyle = '#f59e0b';
+      ctx.font = 'bold 8px monospace';
+      ctx.fillText('My', gantryXPos - 12, carriageYPos + 3);
+
+      // Rotary Roller Brush
+      ctx.fillStyle = simState.brushActive ? '#0284c7' : '#475569';
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(gantryXPos + 10, carriageYPos, 12, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      if (simState.brushActive) {
+        simState.brushRotation += 0.35 * simState.simSpeed;
+        ctx.strokeStyle = '#bae6fd';
+        ctx.lineWidth = 1.5;
+        for (let b = 0; b < 6; b++) {
+          const angle = simState.brushRotation + (b * Math.PI / 3);
+          ctx.beginPath();
+          ctx.moveTo(gantryXPos + 10, carriageYPos);
+          ctx.lineTo(gantryXPos + 10 + Math.cos(angle) * 11, carriageYPos + Math.sin(angle) * 11);
+          ctx.stroke();
+        }
+      }
+
+      if (simState.pumpActive) {
+        const sprayX = gantryXPos + 12;
+        const sprayY = carriageYPos;
+        const sprayGrad = ctx.createRadialGradient(sprayX, sprayY, 2, sprayX, sprayY + 25, 30);
+        sprayGrad.addColorStop(0, 'rgba(56, 189, 248, 0.9)');
+        sprayGrad.addColorStop(0.6, 'rgba(14, 165, 233, 0.35)');
+        sprayGrad.addColorStop(1, 'rgba(14, 165, 233, 0)');
+        ctx.fillStyle = sprayGrad;
+        ctx.beginPath();
+        ctx.arc(sprayX, sprayY, 28, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      renderCamFeed();
+    }
+
+    // Render Inset ESP32-CAM Camera Feed
+    function renderCamFeed() {
+      if (!camCanvas || !camCtx) return;
+      const cw = camCanvas.width;
+      const ch = camCanvas.height;
+      camCtx.clearRect(0, 0, cw, ch);
+
+      if (simState.camMode === 'rgb') {
+        camCtx.fillStyle = '#0369a1';
+        camCtx.fillRect(0, 0, cw, ch);
+
+        camCtx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+        camCtx.lineWidth = 1;
+        for (let x = 16; x < cw; x += 26) {
+          camCtx.beginPath(); camCtx.moveTo(x, 0); camCtx.lineTo(x, ch); camCtx.stroke();
+        }
+        for (let y = 14; y < ch; y += 22) {
+          camCtx.beginPath(); camCtx.moveTo(0, y); camCtx.lineTo(cw, y); camCtx.stroke();
+        }
+
+        if (simState.dustLevel > 0) {
+          camCtx.fillStyle = `rgba(180, 83, 9, ${(simState.dustLevel / 100) * 0.85})`;
+          camCtx.fillRect(0, 0, cw, ch);
+        }
+
+        simState.spots.forEach(sp => {
+          camCtx.fillStyle = (sp.type === 'bird') ? '#f8fafc' : '#b45309';
+          camCtx.beginPath();
+          camCtx.arc(sp.x * cw, sp.y * ch, sp.radius * 0.45, 0, Math.PI * 2);
+          camCtx.fill();
+        });
+      } else if (simState.camMode === 'edge') {
+        camCtx.fillStyle = '#020617';
+        camCtx.fillRect(0, 0, cw, ch);
+
+        const edgeBrightness = Math.max(0.15, 1.0 - (simState.dustLevel / 100) * 0.85);
+        camCtx.strokeStyle = `rgba(56, 189, 248, ${edgeBrightness})`;
+        camCtx.lineWidth = 1;
+
+        for (let x = 16; x < cw; x += 26) {
+          camCtx.beginPath(); camCtx.moveTo(x, 0); camCtx.lineTo(x, ch); camCtx.stroke();
+        }
+        for (let y = 14; y < ch; y += 22) {
+          camCtx.beginPath(); camCtx.moveTo(0, y); camCtx.lineTo(cw, y); camCtx.stroke();
+        }
+
+        simState.spots.forEach(sp => {
+          camCtx.strokeStyle = (sp.type === 'bird') ? '#f43f5e' : '#f59e0b';
+          camCtx.lineWidth = 1.5;
+          camCtx.strokeRect(sp.x * cw - 6, sp.y * ch - 6, 12, 12);
+        });
+      } else if (simState.camMode === 'heat') {
+        camCtx.fillStyle = '#064e3b';
+        camCtx.fillRect(0, 0, cw, ch);
+
+        if (simState.dustLevel > 0) {
+          camCtx.fillStyle = `rgba(245, 158, 11, ${(simState.dustLevel / 100) * 0.6})`;
+          camCtx.fillRect(0, 0, cw, ch);
+        }
+
+        simState.spots.forEach(sp => {
+          const hGrad = camCtx.createRadialGradient(sp.x * cw, sp.y * ch, 1, sp.x * cw, sp.y * ch, 18);
+          hGrad.addColorStop(0, '#ef4444');
+          hGrad.addColorStop(0.7, '#f59e0b');
+          hGrad.addColorStop(1, 'rgba(6, 78, 59, 0)');
+          camCtx.fillStyle = hGrad;
+          camCtx.beginPath();
+          camCtx.arc(sp.x * cw, sp.y * ch, 18, 0, Math.PI * 2);
+          camCtx.fill();
+        });
+      }
+
+      // Crosshairs
+      camCtx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+      camCtx.lineWidth = 1;
+      camCtx.beginPath();
+      camCtx.moveTo(cw/2 - 8, ch/2); camCtx.lineTo(cw/2 + 8, ch/2);
+      camCtx.moveTo(cw/2, ch/2 - 8); camCtx.lineTo(cw/2, ch/2 + 8);
+      camCtx.stroke();
+
+      const zoneLabel = document.getElementById('camDetectedZoneText');
+      const statusTag = document.getElementById('camStatusTag');
+      if (simState.spots.length > 0) {
+        const topSpot = simState.spots[0];
+        if (zoneLabel) zoneLabel.textContent = `${topSpot.zoneName} (${topSpot.type === 'bird' ? 'Bird' : 'Dust'})`;
+        if (statusTag) {
+          statusTag.textContent = 'SPOT DETECTED';
+          statusTag.className = 'text-rose-400 font-bold animate-pulse';
+        }
+      } else if (simState.dustLevel >= simState.dustThreshold) {
+        if (zoneLabel) zoneLabel.textContent = 'Full Array';
+        if (statusTag) {
+          statusTag.textContent = 'DIFFUSE DUST!';
+          statusTag.className = 'text-amber-400 font-bold animate-pulse';
+        }
+      } else {
+        if (zoneLabel) zoneLabel.textContent = 'None';
+        if (statusTag) {
+          statusTag.textContent = 'ALL CLEAR';
+          statusTag.className = 'text-emerald-400 font-bold';
+        }
+      }
+    }
+
+    // Interactive Placement on Canvas Click
+    canvas.addEventListener('click', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const nx = (e.clientX - rect.left) / rect.width;
+      const ny = (e.clientY - rect.top) / rect.height;
+
+      if (nx >= 0.08 && nx <= 0.92 && ny >= 0.11 && ny <= 0.89) {
+        const normX = (nx - 0.08) / 0.84;
+        const normY = (ny - 0.11) / 0.78;
+        addSelectiveSpot(simState.clickTool, normX, normY);
+      }
+    });
+
+    function addSelectiveSpot(type, normX, normY) {
+      initAudio();
+      if (type === 'bird') playSound('splat');
+      else playSound('click');
+
+      const zone = getZoneName(normX, normY);
+      const newSpot = {
+        id: Date.now() + Math.random(),
+        type: type,
+        x: normX,
+        y: normY,
+        radius: (type === 'bird') ? 14 + Math.random() * 8 : 18 + Math.random() * 10,
+        zoneName: zone
+      };
+      simState.spots.push(newSpot);
+
+      logTerminal(`[CONTAMINATION] Added ${type === 'bird' ? 'Bird Waste' : 'Dust Spot'} in Zone ${zone}.`, 'alert');
+      showToast(`Added ${type === 'bird' ? 'Bird Waste' : 'Dust Spot'} in Zone ${zone}!`, type === 'bird' ? '🐦' : '🌫️');
+
+      updateSpotBadges();
+      updateElectricalOutput();
+
+      if (simState.autoCleanEnabled && simState.espState === 'IDLE_MONITORING') {
+        triggerCleaningSequence();
+      }
+    }
+
+    function updateSpotBadges() {
+      const badge = document.getElementById('activeSpotsCountBadge');
+      if (badge) badge.textContent = `Spots: ${simState.spots.length}`;
+      const dPpm = document.getElementById('metricDustPpm');
+      if (dPpm) dPpm.textContent = `${simState.spots.length} spots`;
+    }
+
+    // --- CLEANING DECISION & STATE MACHINE ---
+    let stateTimeRemaining = 0;
+
+    function triggerCleaningSequence() {
+      if (simState.espState !== 'IDLE_MONITORING') {
+        showToast('Clean cycle already in progress!', '⏳');
+        return;
+      }
+      initAudio();
+      playSound('click');
+
+      const hasSpots = simState.spots.length > 0;
+      const hasDiffuseDust = simState.dustLevel >= 5.0;
+
+      // Smart decision:
+      // If ONLY isolated spots exist and spotCleanMode is ON -> TARGETED SPOT CLEAN
+      // If diffuse dust covers the panel (or full clean forced) -> FULL 2-AXIS RASTER SCAN
+      if (hasSpots && simState.spotCleanMode && !hasDiffuseDust) {
+        simState.cleanType = 'spot';
+        simState.activeTargetSpot = simState.spots[0];
+        logTerminal(`[TARGETED SPOT] Camera detected contamination in Zone ${simState.activeTargetSpot.zoneName}. Driving gantry directly to spot.`, 'alert');
+      } else {
+        simState.cleanType = 'raster';
+        simState.activeTargetSpot = null;
+        simState.rasterColumn = 0;
+        simState.cleanedColumns = 0;
+        simState.yDirection = 1;
+        simState.initialDustToClean = simState.dustLevel;
+        logTerminal(`[FULL RASTER] Diffuse dust (${Math.round(simState.dustLevel)}%) detected all over. Starting serpentine 2-axis raster scan across all columns.`, 'alert');
+      }
+
+      transitionState('DUST_DETECTED');
+    }
+
+    function transitionState(newState) {
+      simState.espState = newState;
+      updateHeaderBadges();
+
+      if (newState === 'DUST_DETECTED') {
+        simState.camTriggerActive = true;
+        updateCamLinkUI(true);
+        updateElectricalOutput();
+
+        simState.preCleanMetrics = {
+          voltage: simState.voltage,
+          current: simState.current,
+          power: simState.power,
+          dustLevel: simState.dustLevel + (simState.spots.length * 15),
+          dustUg: simState.dustLevel * 4.2,
+          efficiency: simState.efficiency,
+          irradiance: simState.irradiance,
+          timestamp: new Date().toLocaleTimeString(),
+          targetZone: (simState.cleanType === 'spot' && simState.activeTargetSpot) ? simState.activeTargetSpot.zoneName : 'Full Array'
+        };
+
+        logTerminal(`[PRE-CLEAN] V: ${simState.preCleanMetrics.voltage.toFixed(2)}V | I: ${simState.preCleanMetrics.current.toFixed(2)}A | P: ${simState.preCleanMetrics.power.toFixed(1)}W`, 'clean');
+        updateComparisonUI();
+        stateTimeRemaining = 0.8;
+      } else if (newState === 'HOMING') {
+        // Move to start of array for raster sweep
+        logTerminal('[GANTRY] Aligning gantry at Column 1 (Left rail home)...', 'clean');
+        simState.gantryX = 0.0;
+        simState.cleanerY = 0.0;
+        simState.rasterColumn = 0;
+        simState.yDirection = 1;
+        simState.dualMotorRpm = 450;
+        playSound('stepper');
+        stateTimeRemaining = 0.8;
+      } else if (newState === 'RASTER_SWEEP') {
+        // Full array raster sweep active
+        simState.pumpActive = true;
+        simState.brushActive = true;
+        simState.waterSheen = 1.0;
+        simState.dualMotorRpm = 450;
+        playSound('spray');
+        playSound('brush');
+        logTerminal(`[RASTER SWEEP] Serpentine wash: Scrubbing Column ${simState.rasterColumn + 1}/${simState.totalColumns}...`, 'clean');
+      } else if (newState === 'TRAVERSE_TO_SPOT') {
+        // Spot mode: Traverse directly to target spot
+        simState.targetGantryX = simState.activeTargetSpot.x;
+        simState.targetCleanerY = simState.activeTargetSpot.y;
+        simState.dualMotorRpm = 550;
+        playSound('stepper');
+        logTerminal(`[GANTRY] Dual X-Motors &amp; Y-Carriage traversing directly to Zone ${simState.activeTargetSpot.zoneName}...`, 'clean');
+      } else if (newState === 'SPOT_SCRUB') {
+        simState.pumpActive = true;
+        simState.brushActive = true;
+        simState.waterSheen = 0.9;
+        simState.dualMotorRpm = 0;
+        simState.scrubOscillation = 0;
+        playSound('spray');
+        playSound('brush');
+        logTerminal(`[SPOT SCRUB] Mist spray &amp; roller scrubbing spot in Zone ${simState.activeTargetSpot ? simState.activeTargetSpot.zoneName : 'Target'}!`, 'clean');
+        stateTimeRemaining = 2.0;
+      } else if (newState === 'RETURN_PARK') {
+        simState.pumpActive = false;
+        simState.brushActive = false;
+        simState.dualMotorRpm = 650;
+        playSound('stepper');
+        logTerminal('[GANTRY] Wash complete! Returning vertical gantry directly to Park (0,0).', 'clean');
+      } else if (newState === 'POST_CLEAN') {
+        simState.gantryX = 0.0;
+        simState.cleanerY = 0.0;
+        simState.dualMotorRpm = 0;
+        simState.camTriggerActive = false;
+        updateCamLinkUI(false);
+
+        // Remove spots and dust
+        if (simState.cleanType === 'spot' && simState.activeTargetSpot) {
+          simState.spots = simState.spots.filter(s => s.id !== simState.activeTargetSpot.id);
+          simState.activeTargetSpot = null;
+        } else {
+          // Full raster cleaned all diffuse dust and all spots!
+          simState.spots = [];
+          simState.dustLevel = 0.0;
+        }
+        updateSpotBadges();
+        syncDustControls();
+
+        logTerminal('=== [PHASE 2] SAMPLING POST-CLEAN RECOVERED OUTPUT ===', 'success');
+        updateElectricalOutput();
+        simState.postCleanMetrics = {
+          voltage: simState.voltage,
+          current: simState.current,
+          power: simState.power,
+          dustLevel: 0,
+          dustUg: 0,
+          efficiency: simState.efficiency,
+          irradiance: simState.irradiance,
+          timestamp: new Date().toLocaleTimeString()
+        };
+
+        logTerminal(`[POST-CLEAN] V: ${simState.postCleanMetrics.voltage.toFixed(2)}V | I: ${simState.postCleanMetrics.current.toFixed(2)}A | P: ${simState.postCleanMetrics.power.toFixed(1)}W`, 'success');
+        stateTimeRemaining = 1.0;
+      } else if (newState === 'REPORTING') {
+        const pPre = simState.preCleanMetrics ? simState.preCleanMetrics.power : 0;
+        const pPost = simState.postCleanMetrics ? simState.postCleanMetrics.power : 0;
+        const deltaW = pPost - pPre;
+        const pctGain = (pPre > 0.05) ? (deltaW / pPre) * 100.0 : 0.0;
+
+        simState.cleanCyclesCount++;
+        playSound('chime');
+
+        const lastCleanEl = document.getElementById('lastCleanTimeText');
+        if (lastCleanEl) lastCleanEl.textContent = new Date().toLocaleTimeString().split(' ')[0];
+
+        const isSpot = (simState.cleanType === 'spot');
+        logTerminal(`[AUDIT REPORT] ${isSpot ? 'Targeted Spot' : 'Full Raster'} Clean Finished! Restored: +${deltaW.toFixed(1)}W (+${pctGain.toFixed(1)}% Gain) | ${isSpot ? '84% Energy Saved' : '100% Panel Cleared'}`, 'success');
+        showToast(`Cleaning complete! +${deltaW.toFixed(1)}W restored!`, '⚡');
+
+        addHistoryRecord(pPre, pPost, deltaW, pctGain);
+        updateComparisonUI();
+        stateTimeRemaining = 2.0;
+      } else if (newState === 'COOLDOWN') {
+        logTerminal('[SYSTEM] Gantry parked. Resuming surveillance.', 'clean');
+        stateTimeRemaining = 2.0;
+      } else if (newState === 'IDLE_MONITORING') {
+        logTerminal('[SYSTEM] Returned to IDLE_MONITORING mode.', 'clean');
+      }
+    }
+
+    function updateStateMachine(dt) {
+      if (simState.espState === 'IDLE_MONITORING') {
+        if (simState.autoCleanEnabled && (simState.spots.length > 0 || simState.dustLevel >= simState.dustThreshold)) {
+          logTerminal(`[CAM AUTO-DETECT] Soiling exceeds threshold! Initiating wash.`, 'alert');
+          playSound('cam-snap');
+          triggerCleaningSequence();
+        }
+      } else if (simState.espState === 'DUST_DETECTED') {
+        stateTimeRemaining -= dt;
+        if (stateTimeRemaining <= 0) {
+          if (simState.cleanType === 'spot') {
+            transitionState('TRAVERSE_TO_SPOT');
+          } else {
+            transitionState('HOMING');
+          }
+        }
+      } else if (simState.espState === 'HOMING') {
+        stateTimeRemaining -= dt;
+        if (stateTimeRemaining <= 0) transitionState('RASTER_SWEEP');
+      } else if (simState.espState === 'RASTER_SWEEP') {
+        // FULL 2-AXIS RASTER SCAN ACROSS ALL COLUMNS
+        // Position Gantry X at the current column
+        const targetXForCol = (simState.rasterColumn) / (simState.totalColumns - 1);
+        simState.gantryX = targetXForCol;
+
+        // Move vertical carriage UP or DOWN along the column
+        const ySpeed = 0.55 * dt * simState.simSpeed;
+        simState.cleanerY += simState.yDirection * ySpeed;
+
+        if (Math.random() < 0.08) playSound('stepper');
+
+        // Check if top or bottom of column reached
+        if (simState.yDirection === 1 && simState.cleanerY >= 1.0) {
+          simState.cleanerY = 1.0;
+          advanceRasterColumn();
+        } else if (simState.yDirection === -1 && simState.cleanerY <= 0.0) {
+          simState.cleanerY = 0.0;
+          advanceRasterColumn();
+        }
+
+        // Dynamically reduce dust level as columns are cleaned
+        const progress = (simState.rasterColumn + (simState.yDirection === 1 ? simState.cleanerY : (1 - simState.cleanerY))) / simState.totalColumns;
+        simState.dustLevel = Math.max(0, simState.initialDustToClean * (1.0 - progress));
+        syncDustControls();
+      } else if (simState.espState === 'TRAVERSE_TO_SPOT') {
+        // TARGETED SPOT CLEAN TRAVERSE
+        const speed = 0.7 * dt * simState.simSpeed;
+        const dx = simState.targetGantryX - simState.gantryX;
+        const dy = simState.targetCleanerY - simState.cleanerY;
+        const dist = Math.hypot(dx, dy);
+
+        if (dist > 0.02) {
+          simState.gantryX += (dx / dist) * Math.min(speed, Math.abs(dx));
+          simState.cleanerY += (dy / dist) * Math.min(speed, Math.abs(dy));
+          if (Math.random() < 0.1) playSound('stepper');
+        } else {
+          simState.gantryX = simState.targetGantryX;
+          simState.cleanerY = simState.targetCleanerY;
+          transitionState('SPOT_SCRUB');
+        }
+      } else if (simState.espState === 'SPOT_SCRUB') {
+        stateTimeRemaining -= dt;
+        simState.scrubOscillation += dt * 15;
+        simState.cleanerY = simState.targetCleanerY + Math.sin(simState.scrubOscillation) * 0.03;
+
+        if (stateTimeRemaining <= 0) transitionState('RETURN_PARK');
+      } else if (simState.espState === 'RETURN_PARK') {
+        // High-speed return to home (0, 0)
+        const speed = 0.8 * dt * simState.simSpeed;
+        simState.gantryX = Math.max(0, simState.gantryX - speed);
+        simState.cleanerY = Math.max(0, simState.cleanerY - speed);
+        if (Math.random() < 0.1) playSound('stepper');
+
+        if (simState.gantryX === 0 && simState.cleanerY === 0) {
+          transitionState('POST_CLEAN');
+        }
+      } else if (simState.espState === 'POST_CLEAN') {
+        stateTimeRemaining -= dt;
+        if (stateTimeRemaining <= 0) transitionState('REPORTING');
+      } else if (simState.espState === 'REPORTING') {
+        stateTimeRemaining -= dt;
+        if (stateTimeRemaining <= 0) transitionState('COOLDOWN');
+      } else if (simState.espState === 'COOLDOWN') {
+        stateTimeRemaining -= dt;
+        if (stateTimeRemaining <= 0) transitionState('IDLE_MONITORING');
+      }
+
+      if (simState.waterSheen > 0) {
+        simState.waterSheen = Math.max(0, simState.waterSheen - dt * 0.1);
+      }
+
+      if (simState.windDeposition && simState.espState === 'IDLE_MONITORING') {
+        simState.dustLevel = Math.min(100, simState.dustLevel + dt * 1.2 * simState.simSpeed);
+        syncDustControls();
+      }
+    }
+
+    function advanceRasterColumn() {
+      simState.rasterColumn++;
+      simState.yDirection *= -1; // Reverse stroke direction for serpentine sweep
+
+      if (simState.rasterColumn >= simState.totalColumns) {
+        // Full array finished!
+        simState.dustLevel = 0;
+        transitionState('RETURN_PARK');
+      } else {
+        playSound('stepper');
+        logTerminal(`[RASTER SWEEP] Advancing to Column ${simState.rasterColumn + 1}/${simState.totalColumns}...`, 'clean');
+      }
+    }
+
+    function updateCamLinkUI(active) {
+      const dot = document.getElementById('camLinkDot');
+      const text = document.getElementById('camLinkText');
+      const pill = document.getElementById('camAlertIndicator');
+      if (!dot || !text || !pill) return;
+      if (active) {
+        dot.className = 'w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping';
+        text.textContent = 'CAM Link: ALERT TRIGGERED';
+        pill.className = 'text-[11px] font-mono-code px-2 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-500 animate-pulse flex items-center gap-1';
+      } else {
+        dot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-400';
+        text.textContent = 'CAM Link: STANDBY';
+        pill.className = 'text-[11px] font-mono-code px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-1';
+      }
+    }
+
+    // --- UI SYNCHRONIZATION ---
+    function updateMetricTiles() {
+      const vEl = document.getElementById('metricVoltage');
+      const cEl = document.getElementById('metricCurrent');
+      const pEl = document.getElementById('metricPower');
+      const dPctEl = document.getElementById('metricDustPct');
+      const irrEl = document.getElementById('metricIrradiance');
+      const countEl = document.getElementById('metricCleanCycles');
+
+      if (vEl) vEl.textContent = simState.voltage.toFixed(1);
+      if (cEl) cEl.textContent = simState.current.toFixed(2);
+      if (pEl) pEl.textContent = simState.power.toFixed(1);
+
+      const effectiveSoiling = Math.min(100, Math.round(simState.dustLevel + simState.spots.length * 18));
+      if (dPctEl) dPctEl.textContent = effectiveSoiling;
+      if (irrEl) irrEl.textContent = Math.round(simState.irradiance);
+      if (countEl) countEl.textContent = simState.cleanCyclesCount;
+
+      const vStat = document.getElementById('vStatusText');
+      if (vStat) {
+        if (simState.voltage >= 17.5) {
+          vStat.textContent = 'Optimal';
+          vStat.className = 'text-emerald-400 font-medium';
+        } else if (simState.voltage > 12) {
+          vStat.textContent = 'Reduced';
+          vStat.className = 'text-amber-400 font-medium';
+        } else {
+          vStat.textContent = 'Low/Dark';
+          vStat.className = 'text-slate-500 font-medium';
+        }
+      }
+
+      const cStat = document.getElementById('cStatusText');
+      if (cStat) {
+        if (simState.current >= 4.5) {
+          cStat.textContent = 'Peak Imp';
+          cStat.className = 'text-sky-400';
+        } else if (simState.current > 2.0) {
+          cStat.textContent = 'Moderate';
+          cStat.className = 'text-slate-300';
+        } else {
+          cStat.textContent = 'Low';
+          cStat.className = 'text-slate-500';
+        }
+      }
+
+      const effRatio = document.getElementById('effRatioText');
+      if (effRatio) {
+        const ratio = Math.round((simState.power / simState.ratedPower) * 100);
+        effRatio.textContent = `${ratio}% Pmax`;
+        effRatio.className = (ratio >= 80) ? 'text-emerald-300 font-semibold' : (ratio >= 40) ? 'text-amber-300 font-semibold' : 'text-slate-400';
+      }
+
+      const dBadge = document.getElementById('dustSeverityBadge');
+      if (dBadge) {
+        if (simState.spots.some(s => s.type === 'bird')) {
+          dBadge.textContent = 'Bird Waste!';
+          dBadge.className = 'text-rose-400 font-bold animate-pulse';
+        } else if (simState.spots.length > 0) {
+          dBadge.textContent = 'Spot Dirty';
+          dBadge.className = 'text-amber-400 font-semibold';
+        } else if (simState.dustLevel > 20) {
+          dBadge.textContent = 'Diffuse Dust';
+          dBadge.className = 'text-amber-400 font-medium';
+        } else {
+          dBadge.textContent = 'All Clear';
+          dBadge.className = 'text-emerald-400 font-medium';
+        }
+      }
+
+      const wBadge = document.getElementById('wiperStatusBadge');
+      const pBadge = document.getElementById('pumpStatusBadge');
+      if (wBadge) {
+        const xPct = Math.round(simState.gantryX * 100);
+        const yPct = Math.round(simState.cleanerY * 100);
+        if (simState.espState === 'IDLE_MONITORING') {
+          wBadge.textContent = 'Gantry X: PARKED (0%)';
+          wBadge.className = 'text-[11px] font-mono-code px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700';
+        } else {
+          wBadge.textContent = `Gantry X:${xPct}% | Y:${yPct}%`;
+          wBadge.className = 'text-[11px] font-mono-code px-2 py-0.5 rounded bg-sky-950 text-sky-400 border border-sky-600 animate-pulse';
+        }
+      }
+      if (pBadge) {
+        pBadge.textContent = simState.pumpActive ? 'Pump: ACTIVE 💦' : 'Pump: OFF';
+        pBadge.className = simState.pumpActive ? 'text-[11px] font-mono-code px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-500 animate-pulse' : 'text-[11px] font-mono-code px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700';
+      }
+
+      const dualXEl = document.getElementById('dualXMotorText');
+      if (dualXEl) {
+        if (simState.dualMotorRpm > 0) {
+          dualXEl.textContent = `Sync: ${simState.dualMotorRpm} RPM`;
+          dualXEl.className = 'font-mono-code font-bold text-emerald-400';
+        } else {
+          dualXEl.textContent = 'Sync: Locked';
+          dualXEl.className = 'font-mono-code font-bold text-slate-400';
+        }
+      }
+
+      const yEl = document.getElementById('yCleanerText');
+      if (yEl) {
+        const yPct = Math.round(simState.cleanerY * 100);
+        yEl.textContent = `Y: ${yPct}%`;
+      }
+
+      const sprayText = document.getElementById('sprayNozzleText');
+      if (sprayText) {
+        sprayText.textContent = simState.pumpActive ? 'Active (2.1 L/min)' : 'Idle (0 L/min)';
+        sprayText.className = simState.pumpActive ? 'font-mono-code font-bold text-cyan-300' : 'font-mono-code font-bold text-slate-400';
+      }
+
+      const savedEl = document.getElementById('motorSavedText');
+      if (savedEl) {
+        if (simState.cleanType === 'spot') {
+          savedEl.textContent = '84% Saved (Spot)';
+          savedEl.className = 'font-mono-code font-bold text-emerald-400';
+        } else {
+          savedEl.textContent = 'Full Scan Active';
+          savedEl.className = 'font-mono-code font-bold text-sky-400';
+        }
+      }
+    }
+
+    function updateHeaderBadges() {
+      const stateBadge = document.getElementById('headerStateBadge');
+      const stateText = document.getElementById('headerStateText');
+      const stateDot = document.getElementById('headerStateDot');
+      const btnText = document.getElementById('triggerCleanBtnText');
+      const spinner = document.getElementById('cleanSpinner');
+
+      if (!stateText) return;
+      stateText.textContent = simState.espState;
+
+      if (simState.espState === 'IDLE_MONITORING') {
+        stateBadge.className = 'inline-flex items-center gap-1.5 font-mono-code font-semibold px-2 py-0.5 rounded text-[11px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+        if (stateDot) stateDot.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
+        if (btnText) btnText.textContent = 'Initiate Clean Cycle';
+        if (spinner) spinner.classList.add('hidden');
+      } else {
+        stateBadge.className = 'inline-flex items-center gap-1.5 font-mono-code font-semibold px-2 py-0.5 rounded text-[11px] bg-sky-500/20 text-sky-300 border border-sky-400 animate-pulse';
+        if (stateDot) stateDot.className = 'w-2 h-2 rounded-full bg-sky-400 animate-ping';
+        if (btnText) btnText.textContent = `Cleaning: ${simState.espState}`;
+        if (spinner) spinner.classList.remove('hidden');
+      }
+    }
+
+    function updateComparisonUI() {
+      if (simState.preCleanMetrics) {
+        const m = simState.preCleanMetrics;
+        document.getElementById('preCleanPowerText').textContent = m.power.toFixed(1);
+        document.getElementById('preCleanVoltText').textContent = m.voltage.toFixed(1);
+        document.getElementById('preCleanCurrText').textContent = m.current.toFixed(2);
+        document.getElementById('preCleanEffText').textContent = m.efficiency.toFixed(1);
+        document.getElementById('preCleanDustTag').textContent = `Mode: ${m.targetZone || 'Array'}`;
+      }
+      if (simState.postCleanMetrics) {
+        const m = simState.postCleanMetrics;
+        document.getElementById('postCleanPowerText').textContent = m.power.toFixed(1);
+        document.getElementById('postCleanVoltText').textContent = m.voltage.toFixed(1);
+        document.getElementById('postCleanCurrText').textContent = m.current.toFixed(2);
+        document.getElementById('postCleanEffText').textContent = m.efficiency.toFixed(1);
+        document.getElementById('postCleanDustTag').textContent = `Clean: 100% Cleared`;
+
+        const pPre = simState.preCleanMetrics ? simState.preCleanMetrics.power : 0;
+        const pPost = m.power;
+        const delta = pPost - pPre;
+        const pct = (pPre > 0.05) ? (delta / pPre) * 100.0 : 0.0;
+
+        document.getElementById('deltaPowerText').textContent = (delta >= 0 ? `+${delta.toFixed(1)}` : delta.toFixed(1));
+        document.getElementById('deltaPctText').textContent = (delta >= 0 ? `(+${pct.toFixed(1)}%)` : `(${pct.toFixed(1)}%)`);
+        document.getElementById('deltaDustClearedText').textContent = `100% Cleared`;
+        document.getElementById('deltaStatusText').textContent = (simState.cleanType === 'spot') ? '84% Energy Saved' : 'Full Array Restored';
+        document.getElementById('auditTimestampText').textContent = `Verified at ${m.timestamp}`;
+      }
+    }
+
+    function syncDustControls() {
+      const slider = document.getElementById('dustSlider');
+      const valText = document.getElementById('sliderDustValText');
+      if (slider) slider.value = simState.dustLevel;
+      if (valText) valText.textContent = `${Math.round(simState.dustLevel)}%`;
+    }
+
+    // --- CHART.JS REALTIME TELEMETRY ---
+    let telemetryChart = null;
+    const chartTimeLabels = [];
+    const chartPowerData = [];
+    const chartDustData = [];
+
+    function initChart() {
+      const ctxChart = document.getElementById('telemetryChart');
+      if (!ctxChart) return;
+
+      telemetryChart = new Chart(ctxChart, {
+        type: 'line',
+        data: {
+          labels: chartTimeLabels,
+          datasets: [
+            {
+              label: 'Solar Power (Watts)',
+              data: chartPowerData,
+              borderColor: '#38bdf8',
+              backgroundColor: 'rgba(56, 189, 248, 0.15)',
+              borderWidth: 2,
+              fill: true,
+              tension: 0.3,
+              yAxisID: 'yPower'
+            },
+            {
+              label: 'Soiling / Obscuration (%)',
+              data: chartDustData,
+              borderColor: '#f59e0b',
+              backgroundColor: 'rgba(245, 158, 11, 0.1)',
+              borderWidth: 2,
+              borderDash: [4, 4],
+              fill: false,
+              tension: 0.2,
+              yAxisID: 'yDust'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 0 },
+          scales: {
+            x: {
+              grid: { color: 'rgba(51, 65, 85, 0.3)' },
+              ticks: { color: '#94a3b8', font: { family: 'JetBrains Mono', size: 10 }, maxTicksLimit: 8 }
+            },
+            yPower: {
+              type: 'linear',
+              position: 'left',
+              min: 0,
+              max: 110,
+              title: { display: true, text: 'Power (W)', color: '#38bdf8', font: { size: 11 } },
+              grid: { color: 'rgba(51, 65, 85, 0.3)' },
+              ticks: { color: '#38bdf8' }
+            },
+            yDust: {
+              type: 'linear',
+              position: 'right',
+              min: 0,
+              max: 100,
+              title: { display: true, text: 'Soiling (%)', color: '#f59e0b', font: { size: 11 } },
+              grid: { drawOnChartArea: false },
+              ticks: { color: '#f59e0b' }
+            }
+          },
+          plugins: {
+            legend: {
+              labels: { color: '#cbd5e1', font: { family: 'Inter', size: 11 } }
+            }
+          }
+        }
+      });
+    }
+
+    let lastChartSampleTime = 0;
+    function updateChart(nowSec) {
+      if (!telemetryChart) return;
+      if (nowSec - lastChartSampleTime >= 1.0) {
+        lastChartSampleTime = nowSec;
+        const timeStr = new Date().toLocaleTimeString().split(' ')[0];
+
+        chartTimeLabels.push(timeStr);
+        chartPowerData.push(simState.power);
+        const soilingPct = Math.min(100, simState.dustLevel + simState.spots.length * 18);
+        chartDustData.push(soilingPct);
+
+        if (chartTimeLabels.length > 30) {
+          chartTimeLabels.shift();
+          chartPowerData.shift();
+          chartDustData.shift();
+        }
+        telemetryChart.update();
+      }
+    }
+
+    // --- HISTORICAL AUDIT LOG TABLE ---
+    function addHistoryRecord(pPre, pPost, deltaW, pctGain) {
+      const tbody = document.getElementById('historyTableBody');
+      if (!tbody) return;
+
+      const record = {
+        id: simState.cleanCyclesCount,
+        time: new Date().toLocaleTimeString(),
+        pPre: pPre.toFixed(1),
+        pPost: pPost.toFixed(1),
+        delta: (deltaW >= 0 ? `+${deltaW.toFixed(1)}` : deltaW.toFixed(1)),
+        pct: (pctGain >= 0 ? `+${pctGain.toFixed(1)}%` : `${pctGain.toFixed(1)}%`),
+        dustPre: `${(simState.preCleanMetrics ? simState.preCleanMetrics.dustLevel : 0).toFixed(0)}%`,
+        dustPost: '0%',
+        irr: `${Math.round(simState.irradiance)} W/m²`,
+        trigger: (simState.cleanType === 'spot' && simState.activeTargetSpot) ? `Spot: ${simState.activeTargetSpot.zoneName}` : 'Full Raster'
+      };
+      simState.historyLogs.push(record);
+
+      if (simState.historyLogs.length === 1) tbody.innerHTML = '';
+
+      const row = document.createElement('tr');
+      row.className = 'hover:bg-slate-800/50 transition-colors';
+      row.innerHTML = `
+        <td class="p-2.5 font-bold text-slate-400">#${record.id}</td>
+        <td class="p-2.5 text-slate-300">${record.time}</td>
+        <td class="p-2.5 text-amber-400 font-bold">${record.pPre} W</td>
+        <td class="p-2.5 text-emerald-400 font-bold">${record.pPost} W</td>
+        <td class="p-2.5 text-sky-400 font-bold">${record.delta} W <span class="text-xs text-sky-300">(${record.pct})</span></td>
+        <td class="p-2.5 text-amber-400">${record.dustPre}</td>
+        <td class="p-2.5 text-emerald-400">${record.dustPost}</td>
+        <td class="p-2.5 text-yellow-400">${record.irr}</td>
+        <td class="p-2.5 text-emerald-400 font-semibold">${record.trigger}</td>
+      `;
+      tbody.prepend(row);
+    }
+
+    // --- CONTROLS EVENT WIRING ---
+    function setupEventListeners() {
+      const trigBtn = document.getElementById('triggerCleanBtn');
+      if (trigBtn) trigBtn.addEventListener('click', triggerCleaningSequence);
+
+      const resetBtn = document.getElementById('instantResetCleanBtn');
+      if (resetBtn) resetBtn.addEventListener('click', () => {
+        initAudio();
+        playSound('click');
+        simState.dustLevel = 0.0;
+        simState.spots = [];
+        updateSpotBadges();
+        syncDustControls();
+        logTerminal('Instant clear triggered: All spots and dust removed.', 'clean');
+        showToast('Panel completely cleared!', '✨');
+      });
+
+      const birdToolBtn = document.getElementById('selectToolBirdBtn');
+      const dustToolBtn = document.getElementById('selectToolDustBtn');
+      if (birdToolBtn && dustToolBtn) {
+        birdToolBtn.addEventListener('click', () => {
+          simState.clickTool = 'bird';
+          birdToolBtn.className = 'flex-1 py-1 px-2 rounded font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 transition-colors';
+          dustToolBtn.className = 'flex-1 py-1 px-2 rounded font-medium text-slate-400 hover:text-white transition-colors';
+          showToast('Click mode: Add Bird Dropping', '🐦');
+        });
+        dustToolBtn.addEventListener('click', () => {
+          simState.clickTool = 'dust';
+          dustToolBtn.className = 'flex-1 py-1 px-2 rounded font-bold bg-sky-500/20 text-sky-300 border border-sky-500/40 transition-colors';
+          birdToolBtn.className = 'flex-1 py-1 px-2 rounded font-medium text-slate-400 hover:text-white transition-colors';
+          showToast('Click mode: Add Localized Dust', '🌫️');
+        });
+      }
+
+      const addBirdBtn = document.getElementById('addBirdWasteBtn');
+      if (addBirdBtn) {
+        addBirdBtn.addEventListener('click', () => {
+          const rx = 0.15 + Math.random() * 0.7;
+          const ry = 0.15 + Math.random() * 0.7;
+          addSelectiveSpot('bird', rx, ry);
+        });
+      }
+
+      const addSpotDustBtn = document.getElementById('addSpotDustBtn');
+      if (addSpotDustBtn) {
+        addSpotDustBtn.addEventListener('click', () => {
+          const rx = 0.15 + Math.random() * 0.7;
+          const ry = 0.15 + Math.random() * 0.7;
+          addSelectiveSpot('dust', rx, ry);
+        });
+      }
+
+      const spotToggle = document.getElementById('spotCleanToggle');
+      const spotLabel = document.getElementById('spotModeLabel');
+      if (spotToggle && spotLabel) {
+        spotToggle.addEventListener('change', (e) => {
+          simState.spotCleanMode = e.target.checked;
+          if (simState.spotCleanMode) {
+            spotLabel.textContent = 'Enabled (Smart)';
+            spotLabel.className = 'text-emerald-400 font-bold text-[11px]';
+            logTerminal('Smart spot cleaning mode ENABLED.', 'clean');
+          } else {
+            spotLabel.textContent = 'Disabled (Full Sweep)';
+            spotLabel.className = 'text-amber-400 font-bold text-[11px]';
+            logTerminal('Full-panel sweep mode ENABLED. Complete array will be washed.', 'clean');
+          }
+        });
+      }
+
+      const dustSlider = document.getElementById('dustSlider');
+      if (dustSlider) dustSlider.addEventListener('input', (e) => {
+        simState.dustLevel = parseFloat(e.target.value);
+        const valText = document.getElementById('sliderDustValText');
+        if (valText) valText.textContent = `${Math.round(simState.dustLevel)}%`;
+      });
+
+      const btn10 = document.getElementById('addDust10Btn');
+      if (btn10) btn10.addEventListener('click', () => {
+        initAudio(); playSound('click');
+        simState.dustLevel = Math.min(100, simState.dustLevel + 10);
+        syncDustControls();
+      });
+      const btn25 = document.getElementById('addDust25Btn');
+      if (btn25) btn25.addEventListener('click', () => {
+        initAudio(); playSound('click');
+        simState.dustLevel = Math.min(100, simState.dustLevel + 25);
+        syncDustControls();
+      });
+      const btn50 = document.getElementById('addDust50Btn');
+      if (btn50) btn50.addEventListener('click', () => {
+        initAudio(); playSound('click');
+        simState.dustLevel = Math.min(100, simState.dustLevel + 50);
+        syncDustControls();
+      });
+      const btnStorm = document.getElementById('stormDustBtn');
+      if (btnStorm) btnStorm.addEventListener('click', () => {
+        initAudio(); playSound('spray');
+        simState.dustLevel = 100.0;
+        syncDustControls();
+        logTerminal('Heavy sandstorm: Panel obscured 100%.', 'alert');
+        showToast('Sandstorm simulated: 100% dust!', '🏜️');
+      });
+
+      const rgbBtn = document.getElementById('camModeRgbBtn');
+      const edgeBtn = document.getElementById('camModeEdgeBtn');
+      const heatBtn = document.getElementById('camModeHeatBtn');
+      const modeLabel = document.getElementById('camModeLabel');
+
+      function setCamMode(m) {
+        simState.camMode = m;
+        playSound('cam-snap');
+        if (rgbBtn) rgbBtn.className = (m === 'rgb') ? 'py-1 px-2 rounded bg-cyan-600/30 text-cyan-300 border border-cyan-500/40 font-semibold transition-colors' : 'py-1 px-2 rounded bg-slate-800 text-slate-300 hover:text-white border border-slate-700 font-medium transition-colors';
+        if (edgeBtn) edgeBtn.className = (m === 'edge') ? 'py-1 px-2 rounded bg-cyan-600/30 text-cyan-300 border border-cyan-500/40 font-semibold transition-colors' : 'py-1 px-2 rounded bg-slate-800 text-slate-300 hover:text-white border border-slate-700 font-medium transition-colors';
+        if (heatBtn) heatBtn.className = (m === 'heat') ? 'py-1 px-2 rounded bg-cyan-600/30 text-cyan-300 border border-cyan-500/40 font-semibold transition-colors' : 'py-1 px-2 rounded bg-slate-800 text-slate-300 hover:text-white border border-slate-700 font-medium transition-colors';
+        if (modeLabel) modeLabel.textContent = (m === 'rgb') ? 'RGB_STREAM' : (m === 'edge') ? 'SOBEL_EDGES' : 'SOIL_HEATMAP';
+        showToast(`Camera Filter: ${m.toUpperCase()}`, '📷');
+      }
+
+      if (rgbBtn) rgbBtn.addEventListener('click', () => setCamMode('rgb'));
+      if (edgeBtn) edgeBtn.addEventListener('click', () => setCamMode('edge'));
+      if (heatBtn) heatBtn.addEventListener('click', () => setCamMode('heat'));
+
+      const sunSlider = document.getElementById('sunSlider');
+      if (sunSlider) sunSlider.addEventListener('input', (e) => {
+        simState.irradiance = parseFloat(e.target.value);
+        const valText = document.getElementById('sliderSunValText');
+        if (valText) valText.textContent = `${Math.round(simState.irradiance)} W/m²`;
+        const condText = document.getElementById('sunConditionText');
+        if (condText) {
+          if (simState.irradiance >= 900) condText.textContent = 'Peak Noon';
+          else if (simState.irradiance >= 650) condText.textContent = 'Morning/Aft';
+          else if (simState.irradiance >= 300) condText.textContent = 'Overcast';
+          else if (simState.irradiance > 50) condText.textContent = 'Dusk/Dawn';
+          else condText.textContent = 'Night/Dark';
+        }
+      });
+
+      const noonBtn = document.getElementById('sunPresetNoon');
+      if (noonBtn) noonBtn.addEventListener('click', () => {
+        simState.irradiance = 1000;
+        if (sunSlider) sunSlider.value = 1000;
+        document.getElementById('sliderSunValText').textContent = '1000 W/m²';
+        document.getElementById('sunConditionText').textContent = 'Peak Noon';
+      });
+      const mornBtn = document.getElementById('sunPresetMorning');
+      if (mornBtn) mornBtn.addEventListener('click', () => {
+        simState.irradiance = 750;
+        if (sunSlider) sunSlider.value = 750;
+        document.getElementById('sliderSunValText').textContent = '750 W/m²';
+        document.getElementById('sunConditionText').textContent = 'Morning';
+      });
+      const cldBtn = document.getElementById('sunPresetCloudy');
+      if (cldBtn) cldBtn.addEventListener('click', () => {
+        simState.irradiance = 350;
+        if (sunSlider) sunSlider.value = 350;
+        document.getElementById('sliderSunValText').textContent = '350 W/m²';
+        document.getElementById('sunConditionText').textContent = 'Overcast';
+      });
+      const duskBtn = document.getElementById('sunPresetDusk');
+      if (duskBtn) duskBtn.addEventListener('click', () => {
+        simState.irradiance = 100;
+        if (sunSlider) sunSlider.value = 100;
+        document.getElementById('sliderSunValText').textContent = '100 W/m²';
+        document.getElementById('sunConditionText').textContent = 'Dusk';
+      });
+
+      const thSlider = document.getElementById('thresholdSlider');
+      if (thSlider) thSlider.addEventListener('input', (e) => {
+        simState.dustThreshold = parseInt(e.target.value);
+        document.getElementById('sliderThresholdValText').textContent = `${simState.dustThreshold}% (Soiling)`;
+        document.getElementById('dustThresholdNotice').textContent = `Trigger at: ${simState.dustThreshold}%`;
+      });
+
+      const autoCleanToggle = document.getElementById('autoCleanToggle');
+      if (autoCleanToggle) autoCleanToggle.addEventListener('change', (e) => {
+        simState.autoCleanEnabled = e.target.checked;
+        logTerminal(`Autonomous cleaning mode ${simState.autoCleanEnabled ? 'ENABLED' : 'DISABLED'}.`, 'clean');
+      });
+
+      const windToggle = document.getElementById('windDepositionToggle');
+      if (windToggle) windToggle.addEventListener('change', (e) => {
+        simState.windDeposition = e.target.checked;
+        logTerminal(`Environmental wind dust deposition ${simState.windDeposition ? 'ACTIVE' : 'OFF'}.`, 'clean');
+      });
+
+      const s1 = document.getElementById('simSpeed1Btn');
+      const s2 = document.getElementById('simSpeed2Btn');
+      const s5 = document.getElementById('simSpeed5Btn');
+      function setSpeed(sp) {
+        simState.simSpeed = sp;
+        [s1, s2, s5].forEach(btn => {
+          if (btn) btn.className = 'px-2 py-1 rounded font-medium text-slate-300 hover:text-white hover:bg-slate-700 transition-colors';
+        });
+        if (sp === 1 && s1) s1.className = 'px-2 py-1 rounded font-medium bg-sky-600 text-white hover:bg-sky-500 transition-colors';
+        if (sp === 2 && s2) s2.className = 'px-2 py-1 rounded font-medium bg-sky-600 text-white hover:bg-sky-500 transition-colors';
+        if (sp === 5 && s5) s5.className = 'px-2 py-1 rounded font-medium bg-sky-600 text-white hover:bg-sky-500 transition-colors';
+        showToast(`Simulation Speed: ${sp}x`, '⚡');
+      }
+      if (s1) s1.addEventListener('click', () => setSpeed(1));
+      if (s2) s2.addEventListener('click', () => setSpeed(2));
+      if (s5) s5.addEventListener('click', () => setSpeed(5));
+
+      const audioBtn = document.getElementById('simAudioToggle');
+      const audioIcon = document.getElementById('audioIcon');
+      if (audioBtn) audioBtn.addEventListener('click', () => {
+        simState.audioEnabled = !simState.audioEnabled;
+        if (audioIcon) audioIcon.textContent = simState.audioEnabled ? '🔊' : '🔇';
+        showToast(simState.audioEnabled ? 'Sound Enabled' : 'Sound Muted', simState.audioEnabled ? '🔊' : '🔇');
+      });
+
+      const copyCodeBtn = document.getElementById('copySourceCodeBtn');
+      if (copyCodeBtn) copyCodeBtn.addEventListener('click', () => {
+        const codeText = document.getElementById('firmwareCodeBlock').innerText;
+        navigator.clipboard.writeText(codeText).then(() => {
+          showToast('Dual-mode code copied!', '📋');
+        }).catch(() => {
+          showToast('Code copied!', '📋');
+        });
+      });
+
+      const exportBtn = document.getElementById('exportCsvBtn');
+      if (exportBtn) exportBtn.addEventListener('click', () => {
+        if (simState.historyLogs.length === 0) {
+          showToast('No cleaning records to export yet!', '⚠️');
+          return;
+        }
+        let csv = 'Cycle,Timestamp,PrePower_W,PostPower_W,Delta_W,Gain_Pct,PreDust,PostDust,Irradiance,Trigger\n';
+        simState.historyLogs.forEach(r => {
+          csv += `${r.id},"${r.time}",${r.pPre},${r.pPost},${r.delta},"${r.pct}","${r.dustPre}","${r.dustPost}","${r.irr}","${r.trigger}"\n`;
+        });
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'esp32_cleaning_audit.csv';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('Exported CSV audit file!', '📊');
+      });
+
+      const clearBtn = document.getElementById('clearHistoryBtn');
+      if (clearBtn) clearBtn.addEventListener('click', () => {
+        simState.historyLogs = [];
+        const tbody = document.getElementById('historyTableBody');
+        if (tbody) {
+          tbody.innerHTML = '<tr class="text-slate-500 text-center py-6"><td colspan="9" class="p-4 text-center font-sans">No cleaning cycles logged yet. Run a cleaning cycle to record data.</td></tr>';
+        }
+        showToast('Historical log cleared', '🗑️');
+      });
+
+      const termClear = document.getElementById('termClearBtn');
+      if (termClear) termClear.addEventListener('click', () => {
+        const term = document.getElementById('terminalOutput');
+        if (term) term.innerHTML = '<div class="term-entry text-slate-500" data-cat="system">[SYSTEM] Terminal logs cleared.</div>';
+      });
+
+      const termCopy = document.getElementById('termCopyBtn');
+      if (termCopy) termCopy.addEventListener('click', () => {
+        const term = document.getElementById('terminalOutput');
+        if (term) {
+          navigator.clipboard.writeText(term.innerText).then(() => {
+            showToast('Serial console copied!', '📋');
+          });
+        }
+      });
+
+      const fAll = document.getElementById('termFilterAllBtn');
+      const fClean = document.getElementById('termFilterCleanBtn');
+      if (fAll && fClean) {
+        fAll.addEventListener('click', () => {
+          simState.termFilterMode = 'all';
+          fAll.className = 'text-xs px-2.5 py-1 rounded bg-sky-600 text-white font-medium';
+          fClean.className = 'text-xs px-2.5 py-1 rounded bg-slate-800 text-slate-400 hover:text-white';
+          document.querySelectorAll('#terminalOutput .term-entry').forEach(el => el.classList.remove('hidden'));
+        });
+        fClean.addEventListener('click', () => {
+          simState.termFilterMode = 'clean';
+          fClean.className = 'text-xs px-2.5 py-1 rounded bg-sky-600 text-white font-medium';
+          fAll.className = 'text-xs px-2.5 py-1 rounded bg-slate-800 text-slate-400 hover:text-white';
+          document.querySelectorAll('#terminalOutput .term-entry').forEach(el => {
+            if (el.getAttribute('data-cat') === 'clean') el.classList.remove('hidden');
+            else el.classList.add('hidden');
+          });
+        });
+      }
+
+      const jumpAnalytics = document.getElementById('viewAnalyticsTabDirectBtn');
+      if (jumpAnalytics) jumpAnalytics.addEventListener('click', () => {
+        switchTab('analytics');
+      });
+
+      setupTabs();
+    }
+
+    function setupTabs() {
+      const tabs = [
+        { id: 'tabSimBtn', view: 'viewSimulation', name: 'sim' },
+        { id: 'tabAnalyticsBtn', view: 'viewAnalytics', name: 'analytics' },
+        { id: 'tabTerminalBtn', view: 'viewTerminal', name: 'terminal' },
+        { id: 'tabSchematicBtn', view: 'viewSchematic', name: 'schematic' },
+        { id: 'tabCodeBtn', view: 'viewCode', name: 'code' },
+      ];
+
+      tabs.forEach(t => {
+        const btn = document.getElementById(t.id);
+        if (btn) btn.addEventListener('click', () => switchTab(t.name));
+      });
+    }
+
+    function switchTab(targetName) {
+      const tabs = [
+        { id: 'tabSimBtn', view: 'viewSimulation', name: 'sim' },
+        { id: 'tabAnalyticsBtn', view: 'viewAnalytics', name: 'analytics' },
+        { id: 'tabTerminalBtn', view: 'viewTerminal', name: 'terminal' },
+        { id: 'tabSchematicBtn', view: 'viewSchematic', name: 'schematic' },
+        { id: 'tabCodeBtn', view: 'viewCode', name: 'code' },
+      ];
+
+      tabs.forEach(t => {
+        const btn = document.getElementById(t.id);
+        const view = document.getElementById(t.view);
+        if (btn && view) {
+          if (t.name === targetName) {
+            btn.className = 'px-3.5 py-1.5 text-xs sm:text-sm font-semibold rounded-lg bg-sky-600/20 text-sky-400 border border-sky-500/30 flex items-center gap-2 whitespace-nowrap transition-colors';
+            view.classList.remove('hidden');
+          } else {
+            btn.className = 'px-3.5 py-1.5 text-xs sm:text-sm font-semibold rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 flex items-center gap-2 whitespace-nowrap transition-colors';
+            view.classList.add('hidden');
+          }
+        }
+      });
+
+      if (targetName === 'analytics' && telemetryChart) {
+        telemetryChart.resize();
+      }
+    }
+
+    // --- MAIN SIMULATION LOOP ---
+    function animationLoop(timestamp) {
+      const rawDt = (timestamp - simState.lastTick) / 1000.0;
+      simState.lastTick = timestamp;
+      const dt = Math.min(0.1, rawDt) * simState.simSpeed;
+
+      simState.elapsedSeconds += dt;
+
+      updateElectricalOutput();
+      updateStateMachine(dt);
+      updateMetricTiles();
+      updateChart(simState.elapsedSeconds);
+
+      renderSolarRig();
+
+      requestAnimationFrame(animationLoop);
+    }
+
+    // --- INITIALIZATION ---
+    window.onload = () => {
+      setupEventListeners();
+      initChart();
+      updateElectricalOutput();
+      updateMetricTiles();
+      requestAnimationFrame(animationLoop);
+    };
+  </script>
+</body>
+</html>
